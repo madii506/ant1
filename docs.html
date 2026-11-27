@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ANT1 · docs</title>
+<meta name="description" content="How ANT1 works: launching an ant of any pump coin, queens, food, buying with SOL in one multi-hop swap, levels, costs, safety and the API.">
+<meta name="theme-color" content="#07070b">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/fav-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/fav-64.png">
+<link rel="apple-touch-icon" href="/img/fav-180.png">
+<meta property="og:title" content="ANT1 · docs">
+<meta property="og:image" content="https://ant1.vercel.app/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/ant1.css?v=1">
+<script type="module" src="/js/page.js?v=1"></script>
+</head>
+<body class="page docs">
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<nav class="nav" id="dock" aria-label="ANT1">
+  <div class="links"><a href="/">home</a><a href="/app#launch">launch</a><a href="/app#buy">buy</a><a href="/app#colony">colony</a><a class="on" href="/docs">docs</a></div>
+</nav>
+
+<main>
+  <div class="wrap">
+    <div class="pg-head"><p class="eye">docs</p><h1>how ant1 <em>works.</em></h1></div>
+    <div class="doc">
+      <nav class="toc" aria-label="Contents">
+        <a href="#what">What ant1 is</a><a href="#words">Queens, ants, food</a><a href="#launch">Launch an ant</a><a href="#tx">The launch transaction</a><a href="#swap">Buy with SOL</a><a href="#queens">Which coins can be a queen</a><a href="#levels">Levels</a><a href="#food">Food and graduation</a><a href="#radar">The vamp radar</a><a href="#cost">Costs</a><a href="#safety">Safety</a><a href="#chain">Check it on chain</a><a href="#api">API</a>
+      </nav>
+      <article>
+        <section id="what">
+          <h2><small>01</small>What ant1 is</h2>
+          <p>ant1 is the anti-vamp launchpad. Every narrative on pump.fun ends the same way: one coin catches, and within the hour fifty copies launch with its name. Each copy is a vamp. It pulls buyers, liquidity and attention out of the original, and most of them are dead by morning.</p>
+          <p>ant1 gives a copy a different job. Instead of launching against the original, you launch an <b>ant</b> of it. The ant's bonding curve is priced in the original, the <b>queen</b>, instead of SOL. Every buy of the ant is a buy of the queen first.</p>
+          <div class="callout"><p><b>Vamps drain. Ants carry.</b> pump.fun's own program can price a new coin in another coin. ant1 gives that a front door: a queen picker, a one-swap buy in SOL, a vamp radar, and a public colony of every ant launched this way.</p></div>
+        </section>
+
+        <section id="words">
+          <h2><small>02</small>Queens, ants, food</h2>
+          <ul>
+            <li><b>Queen:</b> the coin an ant is priced in. Any pump coin pump.fun allows, or one of the <span data-live="hosts">237</span> assets on pump.fun's own list.</li>
+            <li><b>Ant:</b> a pump.fun coin launched on ant1 whose curve is priced in its queen.</li>
+            <li><b>Food:</b> the queen tokens sitting in an ant's curve. Every buy of the ant leaves more of the queen inside it.</li>
+            <li><b>Colony:</b> every ant of one queen. A queen can have as many ants as people launch.</li>
+            <li><b>Level:</b> how far an ant sits from SOL. An ant of a SOL coin is level 1; an ant of that ant is level 2, up to <span data-live="depth">5</span>.</li>
+            <li><b>Vamp:</b> a copy launched anywhere else, priced in SOL, competing with the original for the same buyers.</li>
+          </ul>
+        </section>
+
+        <section id="launch">
+          <h2><small>03</small>Launch an ant</h2>
+          <ol>
+            <li>Pick a queen: from pump.fun's trending coins, from pump.fun's list, or paste any contract.</li>
+            <li>Add an image, a name, a ticker and links. The image is cropped square in your browser.</li>
+            <li>ant1 stores the image and metadata, builds the launch with pump.fun's official SDK, and runs it against Solana mainnet before your wallet sees it. If it would fail, you get the reason and nothing is sent.</li>
+            <li>Your wallet signs. Then the page signs for the new ant's address, with a key made in your browser that never leaves it.</li>
+            <li>Solana confirms, and your ant is live on pump.fun.</li>
+          </ol>
+          <p>Want a first buy? It follows right after in a second transaction. When the queen is a pump coin you pay in SOL, through one swap. When she's a listed asset like ETH or a stock, you pay in that asset.</p>
+        </section>
+
+        <section id="tx">
+          <h2><small>04</small>The launch transaction</h2>
+          <p>One Solana transaction, and nothing of ours in the middle:</p>
+          <ul>
+            <li>a compute budget, sized from a simulation of that exact launch</li>
+            <li>pump.fun's <code>create_v2</code>, with your queen as the quote mint</li>
+            <li>a 0 SOL transfer to ant1's tag address, plus a memo naming the ant and its queen when it fits</li>
+          </ul>
+          <p>No custom program, no contract of ours: pump.fun's own program from start to finish.</p>
+        </section>
+
+        <section id="swap">
+          <h2><small>05</small>Buy an ant with SOL</h2>
+          <p>You don't need to hold the queen to buy an ant. Paste any ant on the Buy tab and pay SOL. ant1 reads the ant's line from Solana (SOL, its queen, the ant) and builds one <code>multi_hop_swap</code> on pump.fun's own programs:</p>
+          <ul>
+            <li><b>Hop 1:</b> SOL buys the queen, on her curve while she trades on it, or on her PumpSwap pool once she has graduated.</li>
+            <li><b>Hop 2:</b> the queen buys the ant, on the ant's curve, which is priced in her.</li>
+            <li><b>Deeper ants</b> add a hop per level, so every coin above them gets bought on the way. One Solana transaction holds two hops, so an ant of an ant is bought in steps: each step is one transaction of up to two hops, paid with what the step before it bought. Your wallet signs each step.</li>
+          </ul>
+          <p>Each step is simulated first and carries a minimum out, so a price move past your limit fails that transaction instead of filling badly. If you stop between steps, what the earlier steps bought stays in your wallet. pump.fun's programs refuse a few cases, and ant1 shows the reason when they do: a line that starts at a listed asset rather than SOL (buy those with the asset on pump.fun), and coins in pump.fun's mayhem mode.</p>
+          <p>Measured with pump.fun's SDK, a buy of an ant of a SOL coin is 1,159 bytes, or 1,181 once its queen has graduated to a pool. Solana's limit is 1,232.</p>
+        </section>
+
+        <section id="queens">
+          <h2><small>06</small>Which coins can be a queen</h2>
+          <ul>
+            <li><b>Assets on pump.fun's list.</b> pump.fun keeps an on-chain list of assets a curve can be priced in: <span data-live="hosts">237</span> today, from crypto like ETH and BTC to memes and tokenized stocks. ant1 reads the list live.</li>
+            <li><b>Any pump coin,</b> within pump.fun's limits. Paste a contract on the Check tab, or in the queen check on the home page, and ant1 asks pump.fun's program whether it can be a queen and where its ant would sit.</li>
+          </ul>
+          <p>A queen whose curve is full but not yet migrated has to wait until it lands on PumpSwap.</p>
+        </section>
+
+        <section id="levels">
+          <h2><small>07</small>Levels</h2>
+          <p>An ant can be a queen too. pump.fun caps how deep that goes, and ant1 reads the cap live from pump.fun's global account: <b data-live="depth">5</b> levels today. A buy at the bottom of a line buys every coin above it on the way up.</p>
+        </section>
+
+        <section id="food">
+          <h2><small>08</small>Food and graduation</h2>
+          <p>An ant's curve holds its queen's tokens. That's food, and the colony shows it for every ant, read straight from the curve on Solana. A full curve graduates to PumpSwap into a pool paired with the queen, so the two charts stay tied from then on. The pair is set at launch and never changes.</p>
+          <p>The tie works both ways. If the queen falls, an ant priced in her falls with her. Nothing here is advice.</p>
+        </section>
+
+        <section id="radar">
+          <h2><small>09</small>The vamp radar</h2>
+          <p>Paste any coin and the radar searches Jupiter's token list for every other token on Solana with the same ticker. It shows how many there are and the market cap they hold between them. Those are the vamps: buyers who could have fed the original. A plus sign means the search hit its result limit, so there are at least that many.</p>
+        </section>
+
+        <section id="cost">
+          <h2><small>10</small>Costs</h2>
+          <ul>
+            <li>ant1 takes nothing: no fee, no cut, no allocation, on launches or on buys.</li>
+            <li>A launch costs about 0.01 SOL for the new accounts and network fees.</li>
+            <li>pump.fun's normal trading fees apply on every hop of a buy.</li>
+          </ul>
+        </section>
+
+        <section id="safety">
+          <h2><small>11</small>Safety</h2>
+          <ul>
+            <li>ant1 never holds a key or your money. The server builds transactions and relays signed ones. It has no wallet of its own.</li>
+            <li>Your wallet signs what you built and nothing else. ant1 never asks for your recovery phrase.</li>
+            <li>The send endpoint refuses any transaction that doesn't call pump.fun's programs and carry ant1's tag.</li>
+            <li>No cookies, no analytics.</li>
+          </ul>
+        </section>
+
+        <section id="chain">
+          <h2><small>12</small>Check it on chain</h2>
+          <p>Every ant's launch sends 0 SOL to ant1's tag address: <code data-live="tag">3rg5Xtu9HFEKdQCYq26VWDWkKAWkGpVskxCWBbt5VKnS</code>. The colony reads that address's history from Solana and shows every ant with its queen. Anyone can check it on Solscan.</p>
+        </section>
+
+        <section id="api">
+          <h2><small>13</small>API</h2>
+          <p>Everything the site does goes through one public API. Reads:</p>
+          <ul>
+            <li><code>GET /api/config</code> the tag address and pump.fun's level cap</li>
+            <li><code>GET /api/hosts</code> every asset on pump.fun's list, with live prices</li>
+            <li><code>GET /api/check?mint=</code> can this coin be a queen, and at what level</li>
+            <li><code>GET /api/chain?mint=</code> a coin's line, down to SOL or a listed asset</li>
+            <li><code>GET /api/vamps?mint=</code> every other token with its ticker</li>
+            <li><code>GET /api/list</code> the colony: every ant, its queen and its food</li>
+            <li><code>GET /api/pump</code> what's trending on pump.fun this hour</li>
+            <li><code>GET /api/quote?mint=&amp;sol=</code> what a SOL buy of an ant feeds its queen, at Jupiter's live price</li>
+          </ul>
+          <p>Writes build unsigned transactions for your wallet: <code>POST /api/meta</code>, <code>/api/build</code>, <code>/api/buy</code>, <code>/api/swap</code> (one step of a buy; it answers with the next step when the line is deeper), and <code>/api/send</code> relays a signed one.</p>
+        </section>
+      </article>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+</body>
+</html>

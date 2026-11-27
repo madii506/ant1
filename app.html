@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ANT1</title>
+<meta name="description" content="Launch an ant of any pump coin: priced in the original, so every buy feeds the queen. Buy any ant with SOL in one swap.">
+<meta name="theme-color" content="#07070b">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/fav-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/fav-64.png">
+<link rel="apple-touch-icon" href="/img/fav-180.png">
+<meta property="og:title" content="ANT1">
+<meta property="og:description" content="The anti-vamp launchpad. Vamps drain. Ants carry.">
+<meta property="og:image" content="https://ant1.vercel.app/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ant1.vercel.app/img/og.jpg">
+<link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/ant1.css?v=1">
+<script type="module" src="/js/app.js?v=1"></script>
+</head>
+<body class="page app">
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<nav class="nav" id="dock" aria-label="ANT1">
+  <div class="links"><a href="/" class="hide-m">home</a><a href="#launch" data-tab="launch">launch</a><a href="#buy" data-tab="buy">buy</a><a href="#colony" data-tab="colony">colony</a><a href="#check" data-tab="check" class="hide-m">check</a><a href="/docs">docs</a></div>
+  <div class="r"><button class="btn w wnav" id="wNav" type="button">Connect</button></div>
+</nav>
+
+<main>
+  <div class="wrap">
+    <div class="pg-head">
+      <p class="eye">the anti-vamp launchpad</p>
+      <h1>launch an ant. <em>feed the queen.</em></h1>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="launch" type="button"><b>01</b>Launch an ant</button>
+      <button class="tab" role="tab" data-tab="buy" type="button"><b>02</b>Buy an ant</button>
+      <button class="tab" role="tab" data-tab="colony" type="button"><b>03</b>The colony</button>
+      <button class="tab" role="tab" data-tab="check" type="button"><b>04</b>Check a coin</button>
+    </div>
+
+    <!-- 01 launch -->
+    <section class="panel" data-panel="launch">
+      <div class="launch">
+        <form class="card lform" id="lform" autocomplete="off" novalidate>
+          <div class="hostpick" id="hostPick">
+            <div class="cur" id="hCur"><span class="ic">?</span><div><b>Pick a queen</b><span>The coin your ant is priced in.</span></div><span class="hstat" id="hStat"></span></div>
+            <div class="opts" id="hOpts"></div>
+            <div class="trow" id="hTrend" hidden></div>
+            <div class="hpaste"><input id="hIn" placeholder="Or paste any pump coin or listed asset" spellcheck="false" aria-label="A queen coin's contract address"><button class="btn o" id="hGo" type="button">Use it</button></div>
+          </div>
+          <label class="drop" id="lDrop"><input type="file" id="lImg" accept="image/png,image/jpeg,image/webp,image/gif"><span class="dz"><b>Add an image</b>Drop it here or tap to choose. It's cropped square in your browser.</span></label>
+          <div class="two">
+            <label class="pf"><span>Name</span><input id="lName" maxlength="32" placeholder="Your ant's name"></label>
+            <label class="pf"><span>Ticker</span><input id="lTick" maxlength="10" placeholder="TICKER"></label>
+          </div>
+          <label class="pf"><span>Description</span><textarea id="lDesc" maxlength="500" rows="3" placeholder="What is it? One or two lines."></textarea></label>
+          <div class="three">
+            <label class="pf"><span>X</span><input id="lX" maxlength="120" placeholder="x.com/…"></label>
+            <label class="pf"><span>Telegram</span><input id="lTg" maxlength="120" placeholder="t.me/…"></label>
+            <label class="pf"><span>Website</span><input id="lWeb" maxlength="120" placeholder="https://…"></label>
+          </div>
+          <div class="pf buyf"><span id="lBuyL">Your first buy</span> <b class="num" id="lHold"></b>
+            <div class="buyrow"><input id="lBuy" type="number" min="0" step="any" inputmode="decimal" placeholder="0" aria-label="First buy"><em id="lBuyU">SOL</em><button class="btn o" id="lMax" type="button">Max</button></div></div>
+          <ol class="lsteps">
+            <li><b>One transaction.</b> It creates your ant on pump.fun, priced in the queen. A first buy, if you make one, follows right after in a second.</li>
+            <li><b>Tried first.</b> ant1 runs it against Solana before your wallet sees it. If it would fail, nothing is sent.</li>
+            <li><b>Your wallet signs.</b> Then this page signs for the new ant's address, a key made here that never leaves the page.</li>
+          </ol>
+          <p class="lcost" id="lCost"></p>
+          <div class="prow"><button class="btn g lg" type="submit" id="lGo">Launch <span class="ar">→</span></button><a class="btn o" id="lPost" target="_blank" rel="noopener">Post on X</a><button class="btn o" id="lReset" type="button">Clear</button></div>
+          <ol class="lflow" id="lFlow" hidden>
+            <li data-k="meta"><b>Image and details stored</b><small></small></li>
+            <li data-k="build"><b>Launch built and tried against Solana</b><small></small></li>
+            <li data-k="sign"><b>Signed in your wallet</b><small></small></li>
+            <li data-k="send"><b>Sent to Solana</b><small></small></li>
+            <li data-k="land"><b>Live on pump.fun</b><small></small></li>
+            <li data-k="buy" hidden><b>Your first buy</b><small></small></li>
+          </ol>
+          <div class="lstatus" id="lStatus" role="status" hidden></div>
+        </form>
+        <div class="lprev">
+          <div class="nest"><canvas id="nestCv"></canvas><div class="cap"><span id="nestL">SOL → THE QUEEN → YOUR ANT</span><b id="nestR">—</b></div></div>
+          <div class="ccard">
+            <div class="cpic" id="cPic"><span>?</span></div>
+            <div class="cmeta"><b id="cTick">$TICKER</b><span id="cName">Your ant</span></div>
+            <p id="cDesc">Your description shows here.</p>
+            <div class="cchips"><span class="g" id="cIn">ANT OF · PICK A QUEEN</span><span id="cDepth">DEPTH —</span><span>PUMP.FUN</span></div>
+          </div>
+          <div class="ldone" id="lDone" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 buy -->
+    <section class="panel" data-panel="buy" hidden>
+      <div class="ph"><div><h2>Buy an ant with SOL</h2><p>Paste any ant. One swap buys its queen with your SOL, then the ant with the queen, in a single transaction.</p></div></div>
+      <div class="buyant">
+        <form class="card bform" id="bForm" autocomplete="off" novalidate>
+          <label class="pf"><span>The ant</span><input id="bMint" placeholder="Paste an ant's contract address" spellcheck="false" aria-label="An ant's contract address"></label>
+          <div class="bline" id="bLine"><span class="msg">Its line shows here: SOL, its queen, the ant.</span></div>
+          <div class="pf"><span>You pay</span><div class="buyrow"><input id="bSol" type="number" min="0" step="any" inputmode="decimal" placeholder="0.1" aria-label="SOL to spend"><em>SOL</em></div></div>
+          <div class="bquick" id="bQuick"><button type="button" data-v="0.1">0.1</button><button type="button" data-v="0.25">0.25</button><button type="button" data-v="0.5">0.5</button><button type="button" data-v="1">1</button></div>
+          <label class="pf slip"><span>Max price move</span><select id="bSlip"><option value="3">3%</option><option value="5" selected>5%</option><option value="10">10%</option><option value="15">15%</option></select></label>
+          <div class="prow"><button class="btn g lg" type="submit" id="bGo">Buy <span class="ar">→</span></button></div>
+          <ol class="lflow" id="bFlow" hidden>
+            <li data-k="build"><b>Route built and tried against Solana</b><small></small></li>
+            <li data-k="sign"><b>Signed in your wallet</b><small></small></li>
+            <li data-k="send"><b>Sent to Solana</b><small></small></li>
+            <li data-k="land"><b>Confirmed</b><small></small></li>
+          </ol>
+          <div class="lstatus" id="bStatus" role="status" hidden></div>
+        </form>
+        <div class="bside">
+          <div class="nest"><canvas id="swapCv"></canvas><div class="cap"><span id="swapL">SOL → THE QUEEN → THE ANT</span><b id="swapR">ONE SWAP</b></div></div>
+          <ul class="bnotes">
+            <li><b>No queen needed.</b> You pay SOL. The swap buys the queen on her curve or pool first.</li>
+            <li><b>Every level.</b> An ant of an ant buys each coin above it on the way, in steps of two hops. Your wallet signs each step.</li>
+            <li><b>Tried first.</b> If the swap would fail, your wallet never sees it.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 colony -->
+    <section class="panel" data-panel="colony" hidden>
+      <div class="ph"><div><h2>The colony</h2><p>Every ant launched through ant1, read from Solana, with the queen it feeds and the food in its curve.</p></div><span class="tagl" id="gCount">Read from Solana</span></div>
+      <div class="guests" id="guestList"><div class="gempty"><b>Reading the chain…</b></div></div>
+    </section>
+
+    <!-- 04 check -->
+    <section class="panel" data-panel="check" hidden>
+      <div class="ph"><div><h2>Check a coin</h2><p>Paste any contract. ant1 asks pump.fun's program whether an ant can be priced in it, and how deep that ant would sit.</p></div></div>
+      <div class="card checker">
+        <form id="ckForm" autocomplete="off"><label class="search big"><input id="ckIn" placeholder="Paste a coin's contract address" spellcheck="false" aria-label="A coin's contract address"></label><button class="btn g lg" type="submit">Check <span class="ar">→</span></button></form>
+        <div class="ckout" id="ckOut"><div class="ckempty"><span>WHAT YOU'LL SEE</span><p>Whether the coin can be a queen, where it comes from (a pump coin, or pump.fun's list), how deep its ant would sit, and its live price.</p></div></div>
+      </div>
+    </section>
+  </div>
+</main>
+<div class="wmodal" id="wModal" hidden><div class="wbox" role="dialog" aria-modal="true" aria-labelledby="wTitle"><div class="whead"><b id="wTitle">Connect a wallet</b><button class="wx" id="wClose" type="button" aria-label="Close">✕</button></div><div class="wlist" id="wList"></div><p class="wnote">ant1 asks your wallet for one thing: to sign what you build here. It never asks for your recovery phrase.</p></div></div>
+<div class="toast" id="toast" role="status"></div>
+</body>
+</html>

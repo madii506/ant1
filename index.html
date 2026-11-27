@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ANT1</title>
+<meta name="description" content="The anti-vamp launchpad. Launch an ant of any pump coin: priced in the original, so every buy feeds the queen. Vamps drain. Ants carry.">
+<meta name="theme-color" content="#07070b">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/fav-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/fav-64.png">
+<link rel="apple-touch-icon" href="/img/fav-180.png">
+<meta property="og:title" content="ANT1">
+<meta property="og:description" content="The anti-vamp launchpad. Vamps drain. Ants carry.">
+<meta property="og:image" content="https://ant1.vercel.app/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ant1.vercel.app/img/og.jpg">
+<link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/ant1.css?v=1">
+<script type="module" src="/js/intro.js?v=1"></script>
+<script type="module" src="/js/home.js?v=1"></script>
+</head>
+<body class="home">
+<div class="intro" id="intro" aria-hidden="true"><canvas></canvas></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="ant" viewBox="-5.2 -3.3 10 6.6">
+    <g fill="none" stroke="#f2f2f7" stroke-linecap="round" stroke-linejoin="round" stroke-width=".22">
+      <g class="la"><polyline points=".35,0 1.2,-1.45 2.25,-2.45"/><polyline points="0,0 -.1,1.6 -.45,2.85"/><polyline points="-.3,0 -1.45,-1.45 -2.65,-2.5"/></g>
+      <g class="lb"><polyline points=".35,0 1.2,1.45 2.25,2.45"/><polyline points="0,0 -.1,-1.6 -.45,-2.85"/><polyline points="-.3,0 -1.45,1.45 -2.65,2.5"/></g>
+      <polyline stroke-width=".16" points="2.3,-.5 3.05,-1.35 3.95,-1.05"/><polyline stroke-width=".16" points="2.3,.5 3.05,1.35 3.95,1.05"/>
+    </g>
+    <g fill="#f2f2f7"><ellipse cx="-2.6" rx="2" ry="1.45"/><ellipse cx="-.72" rx=".34" ry=".3"/><ellipse cx=".05" rx=".95" ry=".62"/><ellipse cx="1.75" rx=".98" ry=".9"/></g>
+    <circle cx="3.3" r=".62" fill="#ffb03a"/>
+  </symbol>
+</defs></svg>
+
+<nav class="nav" id="nav" aria-label="ANT1">
+  <div class="links"><a href="#how">how</a><a href="#queens" class="hide-m">queens</a><a href="#radar">radar</a><a href="#colony">colony</a><a href="/docs">docs</a><a class="go" href="/app">launch</a></div>
+</nav>
+
+<header class="hero" id="top">
+  <canvas id="cvHero" aria-label="An ant colony: ants carry food along dotted trails into the queen. Click to drop food."></canvas>
+  <div class="wrap copy">
+    <p class="kick"><i></i>the anti-vamp launchpad</p>
+    <h1 class="wmk" aria-label="ant1"><span>a</span><span>n</span><span>t</span><span>1</span></h1>
+    <p class="hline">vamps drain. <b>ants carry.</b></p>
+    <p class="hsub">Launch an ant of any pump coin. Its curve is priced in the original, so every buy of the ant is a buy of the queen first.</p>
+    <div class="hcta"><a class="btn g lg" href="/app">launch an ant <span class="ar">→</span></a><a class="btn o lg" href="#how">how it works</a></div>
+  </div>
+  <div class="tape" id="tape" hidden><span class="lab"><i></i>QUEENS NOW</span><div class="run" id="tapeRun"></div></div>
+</header>
+
+<main>
+  <section class="nums" aria-label="ANT1 in numbers"><div class="wrap"><div class="sg">
+    <div class="rv"><b class="cu" data-live="hosts">237</b><span>listed queens, plus any pump coin</span></div>
+    <div class="rv" style="--d:1"><b class="cu" data-live="depth">5</b><span>levels of ants of ants</span></div>
+    <div class="rv" style="--d:2"><b>1</b><span>swap: SOL, then the queen, then the ant</span></div>
+    <div class="rv" style="--d:3"><b>0%</b><span>taken by ant1, on anything</span></div>
+    <div class="rv" style="--d:4"><b>∞</b><span>ants per queen</span></div>
+  </div></div></section>
+
+  <div class="trail" style="--t:30s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 01 the drain -->
+  <section class="band" id="drain">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">01 — the drain</p>
+        <h2 class="h2 rv" style="--d:1">every narrative gets <em>vamped.</em></h2>
+        <p class="lede rv" style="--d:2">A coin catches. Within the hour fifty more launch with its name, and every copy pulls buyers, liquidity and attention out of the original. Most are dead by morning, and the original bleeds with them.</p>
+      </div></div>
+      <div class="duel">
+        <div class="side vamp rv"><canvas id="cvVamp"></canvas><div class="cap"><b>a vamp</b><span>drains</span></div><p>Launched anywhere else. <b>Every buy it gets is a buy the original didn't.</b></p></div>
+        <div class="side antd rv" style="--d:1"><canvas id="cvAnt"></canvas><div class="cap"><b>an ant</b><span>carries</span></div><p>Launched on ant1. <b>Every buy of the ant is a buy of the queen first.</b></p></div>
+      </div>
+      <p class="nowline" id="nowLine" hidden></p>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:34s;--dl:-9s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 02 how it works: the farm -->
+  <section class="band dim" id="how">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">02 — how it works</p>
+        <h2 class="h2 rv" style="--d:1">one queen. <em>a whole colony.</em></h2>
+      </div></div>
+      <div class="farm rv" id="farm"><canvas id="cvFarm"></canvas>
+        <ol>
+          <li><div class="ch"></div><span class="n">01</span><h3>pick a queen</h3><p>Any pump coin, or one of <span data-live="hosts">237</span> assets on pump.fun's own list: crypto, memes and stocks.</p><code class="uh">resolveQuoteMint → pump coin · listed asset</code></li>
+          <li><div class="ch"></div><span class="n">02</span><h3>launch its ant</h3><p>One transaction on pump.fun's own program. The ant's curve is priced in the queen, not in SOL.</p><code class="uh">create_v2 · quote_mint = queen</code></li>
+          <li><div class="ch"></div><span class="n">03</span><h3>every buy feeds her</h3><p>Buyers pay SOL. One swap buys the queen, then the ant with her.</p><code class="uh">multi_hop_swap · SOL → queen → ant</code></li>
+          <li><div class="ch"></div><span class="n">04</span><h3>food stays inside</h3><p>The queen tokens sit in the ant's curve. That's food: the ant holds her bags while it grows.</p><code class="uh">curve.realQuoteReserves = food</code></li>
+          <li><div class="ch"></div><span class="n">05</span><h3>ants of ants</h3><p>An ant can be a queen too, <span data-live="depth">5</span> levels deep. A buy at the bottom climbs the whole line.</p><code class="uh">global.maxCurveDepth = <span data-live="depth">5</span></code></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:32s;--dl:-7s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 03 anatomy -->
+  <section class="band" id="anatomy">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">03 — anatomy</p>
+        <h2 class="h2 rv" style="--d:1">what an ant <em>is made of.</em></h2>
+      </div></div>
+      <div class="anat">
+        <div class="anat-fig rv"><canvas id="antCv" aria-hidden="true"></canvas><svg id="bigAnt" viewBox="-5.7 -3.7 11 7.4" role="img" aria-label="An ant, part by part">
+          <ellipse id="aRing" cx="1.75" cy="0" rx="1.3" ry="1.2" fill="none" stroke="#ffb03a" stroke-width=".035" stroke-dasharray=".04 .11" stroke-linecap="round"/>
+          <g class="pt legs" data-p="legs" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width=".17">
+            <g class="la"><polyline points=".35,0 1.2,-1.45 2.25,-2.45"/><polyline points="0,0 -.1,1.6 -.45,2.85"/><polyline points="-.3,0 -1.45,-1.45 -2.65,-2.5"/></g>
+            <g class="lb"><polyline points=".35,0 1.2,1.45 2.25,2.45"/><polyline points="0,0 -.1,-1.6 -.45,-2.85"/><polyline points="-.3,0 -1.45,1.45 -2.65,2.5"/></g>
+          </g>
+          <g class="pt tag" data-p="tag" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width=".12"><polyline points="2.3,-.5 3.05,-1.35 3.95,-1.05"/><polyline points="2.3,.5 3.05,1.35 3.95,1.05"/></g>
+          <ellipse class="pt" data-p="pool" cx="-2.6" rx="2" ry="1.45"/>
+          <ellipse class="pt" data-p="curve" cx="-.72" rx=".34" ry=".3"/>
+          <ellipse class="pt" data-p="curve" cx=".05" rx=".95" ry=".62"/>
+          <ellipse class="pt" data-p="coin" cx="1.75" rx=".98" ry=".9"/>
+          <circle class="pt food" data-p="food" cx="3.3" r=".62"/>
+        </svg></div>
+        <ol class="anat-list rv" style="--d:1">
+          <li data-p="coin"><i>01</i><div><b>the head is your coin</b><span>A normal pump.fun coin with your name, ticker and image, made by pump.fun's own program.</span></div></li>
+          <li data-p="food"><i>02</i><div><b>the crumb is food</b><span>The queen tokens it holds. Every buy leaves more of her inside its curve.</span></div></li>
+          <li data-p="curve"><i>03</i><div><b>the body is the curve</b><span>pump.fun's bonding curve, priced in the queen instead of SOL.</span></div></li>
+          <li data-p="legs"><i>04</i><div><b>the legs are the swap</b><span>Buyers walk in with SOL. One multi-hop swap buys the queen, then the ant.</span></div></li>
+          <li data-p="pool"><i>05</i><div><b>the back is the pool</b><span>A full curve graduates to PumpSwap, paired with its queen for good.</span></div></li>
+          <li data-p="tag"><i>06</i><div><b>the antennae are the tag</b><span>Every launch sends 0 SOL to ant1's tag address, so the colony can find it on chain.</span></div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail" style="--t:28s;--dl:-14s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 04 one swap -->
+  <section class="band" id="swap">
+    <div class="wrap swap">
+      <div class="stage rv"><canvas id="cvSwap"></canvas><div class="lv" id="lv"><button class="on" data-l="1" type="button">an ant</button><button data-l="2" type="button">an ant of an ant</button></div></div>
+      <div>
+        <p class="eye rv">04 — one swap</p>
+        <h2 class="h2 rv" style="--d:1">one swap. <em>two buys.</em></h2>
+        <ul class="inside rv" style="--d:2">
+          <li><i>01</i><div><b>You pay SOL</b><span>Buy any ant with SOL. You don't need to hold the queen first.</span></div></li>
+          <li><i>02</i><div><b>SOL buys the queen</b><span>The first hop runs on her curve, or on her pool once she has graduated.</span></div></li>
+          <li><i>03</i><div><b>The queen buys the ant</b><span>The next hop runs on the ant's curve, which is priced in her.</span></div></li>
+          <li><i>04</i><div><b>One transaction</b><span>pump.fun's own <code>multi_hop_swap</code>, tried against Solana before your wallet signs. Deeper ants buy in steps of two hops.</span></div></li>
+        </ul>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="feed rv" id="feed">
+        <div class="fhead"><b>what your buy feeds</b><span class="live-pill" id="fLive"><i></i>JUPITER PRICE</span></div>
+        <div class="fbody">
+          <div class="fctl">
+            <div class="fq" id="fQueens"><span class="fmsg">Loading queens…</span></div>
+            <label class="fsol"><span>you buy an ant with</span><div><input id="fSol" type="number" min="0.01" max="50" step="any" value="1" inputmode="decimal" aria-label="SOL"><em>SOL</em></div></label>
+          </div>
+          <div class="fout" id="fOut"><p class="fmsg">Pick a queen.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail" style="--t:33s;--dl:-21s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- the transactions, decoded -->
+  <section class="band dim" id="txs">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">05 — the transactions</p>
+        <h2 class="h2 rv" style="--d:1">nothing hidden. <em>read every instruction.</em></h2>
+        <p class="lede rv" style="--d:2">ant1 has no program of its own. Every launch and every buy is pump.fun's own programs, built with pump.fun's official SDK, tried against Solana mainnet before your wallet sees it.</p>
+      </div></div>
+      <div class="txs">
+        <div class="txc rv">
+          <div class="txh"><b>launch an ant</b><span>1 transaction · 2 signers</span></div>
+          <ol class="ixs">
+            <li><em>compute</em><b>set limit</b><span>sized from a simulation of this exact launch</span></li>
+            <li><em>compute</em><b>set price</b><span>a priority fee so it lands in the next blocks</span></li>
+            <li class="hot"><em>pump.fun</em><b>create_v2</b><span>mints the ant; its curve's quote mint is the queen</span></li>
+            <li><em>memo</em><b>ant1:&lt;ant&gt;:&lt;queen&gt;</b><span>names the ant and its queen, when it fits</span></li>
+            <li><em>system</em><b>0 SOL → tag</b><span>how the colony finds every ant on chain</span></li>
+          </ol>
+          <div class="txf"><span>signers</span><b>your wallet + the ant's key, made in your browser</b></div>
+          <div class="txf"><span>cost</span><b>about 0.01 SOL</b></div>
+        </div>
+        <div class="txc rv" style="--d:1">
+          <div class="txh"><b>buy an ant with SOL</b><span>1 transaction per 2 hops</span></div>
+          <ol class="ixs">
+            <li><em>compute</em><b>set limit + price</b><span>from a simulation of this exact buy</span></li>
+            <li><em>token</em><b>open accounts</b><span>your SOL and ant accounts, only if missing</span></li>
+            <li class="hot"><em>pump amm</em><b>multi_hop_swap</b><span>SOL → queen (curve or pool) → ant, with a minimum out</span></li>
+            <li><em>token</em><b>close wrapped SOL</b><span>its rent comes back to you</span></li>
+            <li><em>system</em><b>0 SOL → tag</b><span>marks it as an ant1 buy</span></li>
+          </ol>
+          <div class="txf"><span>size</span><b>1,159 bytes for an ant of a SOL coin · 1,181 once its queen graduated · limit 1,232</b></div>
+          <div class="txf"><span>deeper ants</span><b>bought in steps of two hops, each paying with what the last one bought</b></div>
+        </div>
+      </div>
+      <div class="pids rv">
+        <div><span>pump.fun program</span><code>6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P</code><button type="button" data-copy="6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P">copy</button></div>
+        <div><span>pump amm program</span><code>pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA</code><button type="button" data-copy="pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA">copy</button></div>
+        <div><span>ant1 tag</span><code data-live="tag">3rg5Xtu9HFEKdQCYq26VWDWkKAWkGpVskxCWBbt5VKnS</code><button type="button" data-copy="tag">copy</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:31s;--dl:-4s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 04 queens -->
+  <section class="band dim" id="queens">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">06 — pick a queen</p>
+        <h2 class="h2 rv" style="--d:1">trending now. <em>crown one.</em></h2>
+      </div><span class="live-pill rv" id="qLive"><i></i>READING PUMP.FUN</span></div>
+      <div class="queens" id="qGrid"><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div><div class="qc sk"></div></div>
+      <div class="listed rv"><p>Or crown one of <b data-live="hosts">237</b> listed assets.</p><div class="chips" id="qCats"></div><a class="btn o" href="/app">browse the list <span class="ar">→</span></a></div>
+      <div class="qcheck rv">
+        <form id="qkForm" autocomplete="off"><input id="qkIn" placeholder="Paste any coin to see if it can be a queen" spellcheck="false" aria-label="A coin's contract address"><button class="btn g" type="submit">check</button></form>
+        <div class="qkout" id="qkOut" hidden></div>
+      </div>
+      <div class="assets rv" id="assets">
+        <div class="ahead"><b>pump.fun's list of queens</b><div class="atabs" id="aTabs"><button type="button" data-c="all" class="on">all</button><button type="button" data-c="crypto">crypto</button><button type="button" data-c="meme">memes</button><button type="button" data-c="stock">stocks</button></div><input id="aIn" placeholder="Search a ticker" spellcheck="false" aria-label="Search the list"></div>
+        <div class="agrid" id="aGrid"><p class="fmsg">Reading pump.fun's list…</p></div>
+        <p class="anote" id="aNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail" style="--t:36s;--dl:-20s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 05 radar -->
+  <section class="band" id="radar">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">07 — vamp radar</p>
+        <h2 class="h2 rv" style="--d:1">who's <em>draining</em> your coin?</h2>
+        <p class="lede rv" style="--d:2">Paste any coin. The radar finds every token on Solana wearing its ticker, and what they hold between them.</p>
+      </div></div>
+      <div class="radar">
+        <div class="scope rv"><canvas id="cvRadar"></canvas></div>
+        <div class="rpanel rv" style="--d:1">
+          <form class="rform" id="rForm" autocomplete="off"><input id="rIn" placeholder="Paste a coin's contract address" spellcheck="false" aria-label="A coin's contract address"><button class="btn g" type="submit">scan</button></form>
+          <div class="rchips" id="rChips"></div>
+          <div class="rres" id="rRes"><p class="msg">Reading the radar…</p></div>
+        </div>
+      </div>
+      <div class="vlb rv">
+        <div class="lbh"><b>most vamped on pump.fun right now</b><span class="live-pill" id="lbLive"><i></i>SWEEPING TRENDING</span></div>
+        <div class="lbt" id="lbRows"><div class="lbr sk"></div><div class="lbr sk"></div><div class="lbr sk"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:29s;--dl:-11s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 06 colony -->
+  <section class="band dim" id="colony">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">08 — the colony</p>
+        <h2 class="h2 rv" style="--d:1">every ant, <em>on chain.</em></h2>
+        <p class="lede rv" style="--d:2">Every ant launched on ant1, read from Solana and grouped by its queen, with the food sitting in its curve.</p>
+      </div><span class="live-pill rv" id="cLive"><i></i>READING SOLANA</span></div>
+      <div class="col" id="colList"><div class="qc sk" style="min-height:120px"></div></div>
+      <p class="tagline rv">every ant sends 0 SOL to <span class="num" id="tagAddr">—</span> <button type="button" id="tagCopy">copy</button> <a id="tagLink" href="#" target="_blank" rel="noopener">solscan ↗</a></p>
+    </div>
+  </section>
+
+  <div class="trail" style="--t:33s;--dl:-6s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 07 five deep -->
+  <section class="band" id="deep">
+    <div class="wrap deep">
+      <div>
+        <p class="eye rv">09 — five deep</p>
+        <h2 class="h2 rv" style="--d:1">ants of ants of <em>ants.</em></h2>
+        <p class="lede rv" style="--d:2">An ant can be a queen too. Launch an ant of an ant and a buy at the bottom climbs the whole line: every coin above it gets bought on the way up.</p>
+        <div class="facts rv" style="--d:3"><div><span>levels pump.fun allows</span><b data-live="depth">5</b></div><div><span>ants per queen</span><b>no limit</b></div><div><span>who can launch one</span><b>anyone</b></div><div><span>ant1's cut</span><b>none</b></div></div>
+      </div>
+      <div class="tree rv"><canvas id="cvTree"></canvas></div>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:27s;--dl:-17s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 08 vamp or ant -->
+  <section class="band dim" id="vs">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">10 — vamp or ant</p>
+        <h2 class="h2 rv" style="--d:1">same ticker. <em>opposite ending.</em></h2>
+      </div></div>
+      <table class="vs rv" style="--d:2">
+        <thead><tr><th></th><th>a vamp</th><th>an ant</th></tr></thead>
+        <tbody>
+          <tr><td>a buy goes to</td><td>The copy's own curve. The original never sees it.</td><td>The queen first, then the ant, in one swap.</td></tr>
+          <tr><td>the original</td><td>Loses the buyer, and the attention with it.</td><td>Gets bought every time the ant does.</td></tr>
+          <tr><td>liquidity</td><td>Split across fifty pools.</td><td>Stacked: the queen's tokens sit inside the ant's curve.</td></tr>
+          <tr><td>graduates into</td><td>A SOL pool that fights the original.</td><td>A PumpSwap pool paired with the queen.</td></tr>
+          <tr><td>the chart</td><td>Moves against the original.</td><td>Moves with her, both ways.</td></tr>
+          <tr><td>how many</td><td>As many as there are bots.</td><td>As many as you like. A colony is the point.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="trail" style="--t:35s;--dl:-2s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 10 for communities -->
+  <section class="band" id="crown">
+    <div class="wrap">
+      <div class="bhead"><div>
+        <p class="eye rv">11 — for communities</p>
+        <h2 class="h2 rv" style="--d:1">got vamped? <em>crown your coin.</em></h2>
+      </div></div>
+      <div class="crown">
+        <div class="cstep rv"><span class="cn">01</span><canvas class="cmini" data-k="scan"></canvas><h3>scan your coin</h3><p>Run the vamp radar on your contract and see every copy wearing your ticker, and what they hold.</p></div>
+        <div class="cstep rv" style="--d:1"><span class="cn">02</span><canvas class="cmini" data-k="launch"></canvas><h3>launch its ant</h3><p>One ant priced in your coin, with your art and your links. Every buy of it buys your coin first.</p></div>
+        <div class="cstep rv" style="--d:2"><span class="cn">03</span><canvas class="cmini" data-k="feed"></canvas><h3>point the next wave at it</h3><p>When the narrative runs again, send buyers to ants instead of vamps. The colony grows, and the queen eats.</p></div>
+      </div>
+      <div class="hcta rv"><a class="btn g lg" href="#radar">scan your coin <span class="ar">→</span></a><a class="btn o lg" href="/app">launch an ant</a></div>
+    </div>
+  </section>
+
+  <div class="trail rev" style="--t:30s;--dl:-12s"><svg class="ant"><use href="#ant"/></svg></div>
+
+  <!-- 09 faq -->
+  <section class="band" id="faq">
+    <div class="wrap">
+      <div class="bhead"><div><p class="eye rv">12 — questions</p><h2 class="h2 rv" style="--d:1">asked by <em>the colony.</em></h2></div></div>
+      <div class="faq rv" style="--d:2">
+        <div>
+          <details><summary>What is ant1?</summary><p>A launchpad for ants: pump.fun coins priced in another coin instead of SOL. The coin you price it in is the queen. Every buy of the ant buys the queen first.</p></details>
+          <details><summary>What can be a queen?</summary><p>Any pump coin that pump.fun lets a curve be priced in, plus the <span data-live="hosts">237</span> assets on pump.fun's own list, from ETH and BTC to memes and tokenized stocks. Paste a coin in the app and ant1 asks pump.fun's program first.</p></details>
+          <details><summary>What's food?</summary><p>The queen tokens sitting in an ant's curve. Every buy of the ant leaves more of the queen inside it. The colony shows each ant's food, read from its curve on Solana.</p></details>
+          <details><summary>Can I buy an ant with SOL?</summary><p>Yes, when its line starts at SOL. One <code>multi_hop_swap</code> buys the queen with your SOL, then the ant with the queen. An ant of an ant is bought in steps of two hops, one transaction each. Ants of listed assets like ETH or a stock are bought with that asset.</p></details>
+          <details><summary>Does the queen have to agree?</summary><p>No. Any coin pump.fun allows can be a queen, and anyone can launch her ants. She gains buyers either way: every buy of an ant buys her first.</p></details>
+          <details><summary>Why is an ant priced in its queen?</summary><p>Because that's what turns a buy of the ant into a buy of the queen. The ant's curve only takes the queen as payment and keeps what it takes, so every buyer of the ant buys the queen first.</p></details>
+        </div>
+        <div>
+          <details><summary>Does ant1 take a fee?</summary><p>No. No fee, no cut, no allocation. pump.fun's normal trading fees apply on every hop, and a launch costs about 0.01 SOL in network fees and new accounts.</p></details>
+          <details><summary>What if the queen dumps?</summary><p>The ant falls with her. An ant is priced in its queen, so it rides her chart both ways. Nothing here is advice.</p></details>
+          <details><summary>Does ant1 hold my keys?</summary><p>Never. The server builds transactions and your wallet signs them. The new coin's key is made in your browser and never leaves it. It never asks for your recovery phrase.</p></details>
+          <details><summary>How do I know an ant is real?</summary><p>Every ant's launch sends 0 SOL to ant1's tag address. The colony reads that address from Solana, and anyone can check it on Solscan.</p></details>
+          <details><summary>Is there a contract to audit?</summary><p>There's no ant1 contract. Launches use pump.fun's <code>create_v2</code> and buys use pump.fun's <code>multi_hop_swap</code>. ant1's server only builds those transactions and relays the ones your wallet signs.</p></details>
+          <details><summary>What happens when an ant graduates?</summary><p>Its full curve moves to PumpSwap into a pool paired with its queen, set at launch for good. From then on, buying the ant still buys the queen first: the first hop runs through her curve or pool, the last through the ant's pool.</p></details>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section class="end" id="end">
+  <canvas id="cvEnd" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <h2 class="rv">carry.<br><em>don't drain.</em></h2>
+    <div class="hcta rv" style="--d:1"><a class="btn g lg" href="/app">launch an ant <span class="ar">→</span></a><a class="btn o lg" href="/app#buy">buy an ant</a></div>
+  </div>
+</section>
+<div class="toast" id="toast" role="status"></div>
+</body>
+</html>
