@@ -920,7 +920,7 @@ body.app main { padding-top: 76px; }
 
 /* ---------- polish 1 */
 .trail { clip-path: inset(-24px 0 -24px 0); }
-.qc .vrow { min-height: 18px; margin-top: -4px; }
+.qc .vrow { display: flex; align-items: center; height: 22px; margin-top: -4px; }
 .qc .vamps { position: static; display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: rgba(255, 93, 108, .1); color: var(--red); font: 600 11px/1 var(--mono); opacity: 0; transition: opacity .5s; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .qc .vamps.none { background: rgba(125, 255, 196, .08); color: var(--mint); }
 .qc .vamps.on { opacity: 1; }
