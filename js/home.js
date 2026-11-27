@@ -482,15 +482,19 @@ async function radarInit() {
   $('#rForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#rIn').value.trim(); if (!isAddr(v)) { $('#rRes').innerHTML = '<p class="msg">That isn\'t a Solana address. Paste a coin\'s contract.</p>'; return; } scan(v); });
   // sweep what's trending, rank it by vamps, and open the radar on the most vamped coin
   const res = await sweep(); lastSweep = res; rebuildPops();
-  let shown = res.find(r => r.count > 0) || null;
+  const shown = res.find(r => r.count > 0) || null;
   if (shown) { rdata = shown; renderRadar(shown); }
-  else if (trending.length) { const j = await scan(trending[0].mint); if (j && j.ok) shown = null; }
+  else if (trending.length) await scan(trending[0].mint);
   else $('#rRes').innerHTML = '<p class="msg">Paste any coin above to sweep for its vamps.</p>';
-  const swept = res.filter(r => r && r.ok), vampsN = swept.reduce((a, r) => a + (r.count || 0), 0), held = swept.reduce((a, r) => a + (r.vampsMcap || 0), 0), hit = swept.filter(r => r.count > 0).length;
-  if (swept.length) {
-    const nl = $('#nowLine'); nl.hidden = false;
-    nl.innerHTML = `<span class="k">● live</span><span>Of the <b>${swept.length}</b> coins trending on pump.fun we just swept, <b>${hit}</b> ${hit === 1 ? 'has' : 'have'} vamps: <span class="r">${vampsN}${swept.some(r => r.capped) ? '+' : ''} copies</span> holding <b>${usd(held)}</b> between them.${shown ? ` The most vamped is <b>${esc(sym(shown.symbol))}</b>.` : ''}</span>`;
-  }
+  nowLine();
+}
+// the one-line total under the drain band, from the latest sweep
+function nowLine() {
+  const swept = (lastSweep || []).filter(r => r && r.ok), vampsN = swept.reduce((a, r) => a + (r.count || 0), 0), held = swept.reduce((a, r) => a + (r.vampsMcap || 0), 0), hit = swept.filter(r => r.count > 0).length;
+  const top = swept.find(r => r.count > 0);
+  if (!swept.length) return;
+  const nl = $('#nowLine'); nl.hidden = false;
+  nl.innerHTML = `<span class="k">● live</span><span>Of the <b>${swept.length}</b> coins trending on pump.fun we just swept, <b>${hit}</b> ${hit === 1 ? 'has' : 'have'} vamps: <span class="r">${vampsN}${swept.some(r => r.capped) ? '+' : ''} copies</span> holding <b>${usd(held)}</b> between them.${top ? ` The most vamped is <b>${esc(sym(top.symbol))}</b>.` : ''}</span>`;
 }
 
 // =====================================================================================================
@@ -571,11 +575,21 @@ async function sweep() {
   const rows = $('#lbRows'), pill = $('#lbLive'), qs = trending.slice(0, 8);
   if (!qs.length) { pill.classList.add('off'); pill.innerHTML = '<i></i>FEED OFFLINE'; rows.innerHTML = '<div class="lbe">pump.fun\'s trending feed didn\'t answer, so there\'s nothing to sweep. Paste any coin into the radar above.</div>'; return []; }
   const out = new Array(qs.length).fill(null); let k = 0;
-  await Promise.all([0, 1, 2].map(async () => { while (k < qs.length) { const i = k++; const j = await api('vamps?mint=' + encodeURIComponent(qs[i].mint)); out[i] = j && j.ok && j.symbol ? j : null; } }));
-  const res = out.filter(Boolean);
+  const get = async i => { const j = await api('vamps?mint=' + encodeURIComponent(qs[i].mint)); return j && j.ok && j.symbol ? j : null; };
+  await Promise.all([0, 1, 2].map(async () => { while (k < qs.length) { const i = k++; out[i] = await get(i); } }));
+  // Jupiter's search turns some calls away when they come in a burst: ask again for those, one at a time, and repaint
+  if (out.some(x => !x)) (async () => {
+    let got = 0;
+    for (let i = 0; i < qs.length; i++) if (!out[i]) { await new Promise(r => setTimeout(r, 1200)); out[i] = await get(i); if (out[i]) got++; }
+    if (got) { lastSweep = paintSweep(qs, out); rebuildPops(); nowLine(); }
+  })();
+  return paintSweep(qs, out);
+}
+function paintSweep(qs, out) {
+  const rows = $('#lbRows'), pill = $('#lbLive'), res = out.filter(Boolean);
   res.forEach(r => { const el = document.querySelector(`.qc .vamps[data-m="${r.mint}"]`); if (el) { el.innerHTML = r.count ? `${r.count}${r.capped ? '+' : ''} vamps<i> · ${usd(r.vampsMcap)} held</i>` : 'no vamps found'; el.classList.toggle('none', !r.count); el.classList.add('on'); } });
   const top = res.filter(r => r.count > 0).sort((a, b) => b.count - a.count || (b.vampsMcap || 0) - (a.vampsMcap || 0)).slice(0, 6);
-  pill.classList.add(res.length ? 'on' : 'off'); pill.innerHTML = res.length ? `<i></i>LIVE · ${res.length} OF ${qs.length} SWEPT` : '<i></i>SEARCH OFFLINE';
+  pill.classList.toggle('on', !!res.length); pill.classList.toggle('off', !res.length); pill.innerHTML = res.length ? `<i></i>LIVE · ${res.length} OF ${qs.length} SWEPT` : '<i></i>SEARCH OFFLINE';
   if (!res.length) { rows.innerHTML = '<div class="lbe">Jupiter\'s token search didn\'t answer just now. The radar above still works on any coin you paste.</div>'; return []; }
   if (!top.length) { rows.innerHTML = '<div class="lbe">None of the coins trending right now have copies wearing their ticker. A clean hour.</div>'; return res; }
   const max = Math.max(...top.map(r => r.count));
