@@ -1,0 +1,480 @@
+// ANT1 API: launch an ant of any coin (a pump.fun coin priced in its queen), buy it with SOL in one swap, read the colony and the vamps. No keys, no database.
+//   GET  /api/config                 the live limits (how deep ants can go) and the tag every ANT1 launch carries
+//   GET  /api/hosts                  every listed asset pump.fun lets a coin be priced in, with names, icons and prices
+//   GET  /api/check?mint=            can this coin be a queen? (any pump coin, or a listed asset)
+//   GET  /api/balance?wallet=&mint=  how much of the host a wallet holds, for the first buy
+//   GET  /api/quote?mint=&sol=      what a SOL buy of an ant feeds its queen (Jupiter's live price)
+//   POST /api/meta                   store the coin's image and metadata (pump.fun's IPFS when it answers, else host's storage)
+//   POST /api/build                  one transaction: create the coin priced in the host, plus an optional first buy in the host
+//   POST /api/buy                    the creator's first buy, paid in the host, right after the launch
+//   POST /api/send   GET /api/status the signed launch, broadcast and watched
+//   GET  /api/list                   every ant launched through ANT1, read from the chain, with the food it stores
+//   POST /api/swap                   buy an ant with SOL: SOL › queen › ant in one pump swap
+//   GET  /api/vamps?mint=            the vamps of a coin: other tokens with its ticker, and what they hold
+//   GET  /m/:id                      a coin's metadata file, served from storage
+//   GET  /api/pump                   pump coins trending on Jupiter right now, and the newest ones
+//   GET  /api/copies?symbol=         how many tokens share one ticker right now: PvP, measured
+'use strict';
+const { Connection, PublicKey, SystemProgram, TransactionInstruction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } = require('@solana/web3.js');
+const BN = require('bn.js');
+const P = require('@pump-fun/pump-sdk');
+
+const RPCS = [process.env.RPC_URL, 'https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com'].filter(Boolean);
+async function rpcFetch(url, opts) {
+  let last = null;
+  for (let round = 0; round < 2; round++) {
+    for (const u of RPCS) {
+      try { const r = await fetch(u, { ...opts, signal: AbortSignal.timeout(12000) }); if (r.status === 429 || r.status === 401 || r.status === 403 || r.status >= 500) { last = r; continue; } return r; }
+      catch (e) { last = e; }
+    }
+    await new Promise(r => setTimeout(r, 600));
+  }
+  if (last instanceof Error) throw last; return last;
+}
+const conn = new Connection(RPCS[0], { commitment: 'confirmed', fetch: rpcFetch, disableRetryOnRateLimit: true });
+const sdk = () => new P.OnlinePumpSdk(conn);
+async function rawRpc(url, method, params) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(9000) });
+  if (!r.ok) throw new Error(`rpc ${r.status}`); return r.json();
+}
+
+const PUMP58 = P.PUMP_PROGRAM_ID.toBase58();
+// every host launch sends 0 SOL here inside its own transaction, with a memo naming the coin and its host
+const TAG = new PublicKey(process.env.ANT1_TAG || '3rg5Xtu9HFEKdQCYq26VWDWkKAWkGpVskxCWBbt5VKnS');
+const MEMO = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+const TAG58 = TAG.toBase58(), SOL58 = 'So11111111111111111111111111111111111111112';
+const CU_PRICE = +process.env.ANT1_CU_PRICE || 400000;
+const SITE_ENV = process.env.ANT1_SITE || '';
+const siteOf = req => SITE_ENV || ('https://' + String((req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'ant1.vercel.app').split(',')[0].trim());
+
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58(bytes) { let n = 0n; for (const x of bytes) n = n * 256n + BigInt(x); let s = ''; while (n > 0n) { s = B58[Number(n % 58n)] + s; n /= 58n; } for (const x of bytes) { if (x === 0) s = '1' + s; else break; } return s; }
+const isAddr = s => typeof s === 'string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
+const isSig = s => typeof s === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(s);
+const out = (res, code, b, cache) => { res.statusCode = code; res.setHeader('content-type', 'application/json; charset=utf-8'); res.setHeader('cache-control', cache || 'no-store'); res.end(JSON.stringify(b)); };
+const body = req => new Promise(ok => {
+  if (req.body) { try { return ok(typeof req.body === 'string' ? JSON.parse(req.body) : req.body); } catch { return ok({}); } }
+  let d = ''; req.on('data', c => { d += c; if (d.length > 3e6) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(d || '{}')); } catch { ok({}); } });
+});
+const clean = (s, n) => String(s || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+const pk = (s, what) => { try { return new PublicKey(String(s)); } catch { throw new Error(what || 'That is not a Solana address.'); } };
+function link(s, re, what) {
+  s = clean(s, 200); if (!s) return '';
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  s = s.replace(/^http:\/\//i, 'https://');
+  if (!/^https:\/\/[^\s<>"']+$/.test(s) || (re && !re.test(s))) throw new Error(`The ${what} link doesn't look right.`);
+  return s;
+}
+
+// ---------- names, icons and prices, from Jupiter's token list
+async function jup(mints) {
+  const outm = {};
+  for (let i = 0; i < mints.length; i += 100) {
+    try {
+      const r = await fetch('https://lite-api.jup.ag/tokens/v2/search?query=' + mints.slice(i, i + 100).join(','), { signal: AbortSignal.timeout(9000) });
+      for (const t of await r.json()) outm[t.id] = t;
+    } catch { /* names are optional */ }
+  }
+  return outm;
+}
+const cat = t => {
+  const n = `${t.name || ''} ${t.symbol || ''}`;
+  if (/xStock|Backpack Securities|PreStock|Pre-IPO|Securities|\bETF\b|Index/i.test(n)) return 'stock';
+  if (/Portal|Wormhole|Wrapped|Bridged|Staked|Coinbase|USD|\bSUI\b|\bHYPE\b|\bPUMP\b|\bORE\b|\bNEAR\b|\bJUP\b|\bW\b|\bRAY\b|Raydium|\bJTO\b|Jito|\bPYTH\b|\bHNT\b|Helium|\bRENDER\b|\bORCA\b|\bDRIFT\b|\bKMNO\b|\bTNSR\b|\bMNDE\b|\bJLP\b|Ether|Bitcoin|BTC|ETH|XRP|Solana/i.test(n)) return 'crypto';
+  return 'meme';
+};
+
+// ---------- the host list: pump.fun's QuoteControl, read live
+let hostsCache = null, globalCache = null;
+async function global() { if (globalCache && Date.now() - globalCache.t < 300000) return globalCache.v; const v = await sdk().fetchGlobal(); globalCache = { t: Date.now(), v }; return v; }
+async function hosts() {
+  if (hostsCache && Date.now() - hostsCache.t < 300000) return hostsCache.v;
+  const qc = await sdk().fetchQuoteControl();
+  const mints = ((qc && qc.mints) || []).map(m => (m.mint || m).toBase58());
+  const [meta, g] = await Promise.all([jup([...mints, SOL58]), global().catch(() => null)]);
+  const list = mints.map(m => { const t = meta[m] || {}; return { mint: m, symbol: t.symbol || null, name: t.name || null, icon: t.icon || null, usd: t.usdPrice ?? null, liq: Math.round(t.liquidity || 0), ch24h: t.stats24h && t.stats24h.priceChange != null ? +t.stats24h.priceChange.toFixed(2) : null, cat: cat(t) }; })
+    .sort((a, b) => (b.liq || 0) - (a.liq || 0));
+  const counts = list.reduce((o, h) => (o[h.cat] = (o[h.cat] || 0) + 1, o), {});
+  const v = { ok: true, count: list.length, counts, maxDepth: g ? Number(g.maxCurveDepth || 0) : null, solUsd: (meta[SOL58] && meta[SOL58].usdPrice) || null, hosts: list };
+  hostsCache = { t: Date.now(), v }; return v;
+}
+
+// ---------- pump coins people are trading right now (Jupiter's trending list) and the newest ones: any of them can host
+let pumpCache = null;
+async function pumpBoard() {
+  if (pumpCache && Date.now() - pumpCache.t < 60000) return pumpCache.v;
+  const get = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(9000) }); return r.ok ? await r.json() : []; } catch { return []; } };
+  const [tr, rc] = await Promise.all([get('https://lite-api.jup.ag/tokens/v2/toptrending/1h?limit=100'), get('https://lite-api.jup.ag/tokens/v2/recent')]);
+  const isPump = t => t && typeof t.id === 'string' && (/pump$/.test(t.id) || t.launchpad === 'pump.fun');
+  const pc = x => x == null ? null : +Number(x).toFixed(2);
+  const map = t => ({ mint: t.id, symbol: t.symbol || null, name: t.name || null, icon: t.icon || null, usd: t.usdPrice ?? null, mcap: t.mcap ? Math.round(t.mcap) : null, ch1h: pc(t.stats1h && t.stats1h.priceChange), ch24h: pc(t.stats24h && t.stats24h.priceChange), traders1h: (t.stats1h && t.stats1h.numTraders) || null, grad: !!t.graduatedPool, at: t.createdAt || null });
+  const v = { ok: true, trending: (Array.isArray(tr) ? tr : []).filter(isPump).slice(0, 24).map(map), fresh: (Array.isArray(rc) ? rc : []).filter(isPump).slice(0, 12).map(map) };
+  if (v.trending.length || v.fresh.length) pumpCache = { t: Date.now(), v };
+  return v;
+}
+
+// ---------- PvP, measured: how many tokens share one ticker right now (Jupiter's search)
+const copyCache = new Map();
+async function copies(symRaw) {
+  const sym = clean(symRaw, 24).replace(/^\$/, ''); if (!sym) throw new Error('Give a ticker.');
+  const key = sym.toLowerCase(), hit = copyCache.get(key); if (hit && Date.now() - hit.t < 120000) return hit.v;
+  let j = null; try { const r = await fetch('https://lite-api.jup.ag/tokens/v2/search?query=' + encodeURIComponent(sym), { signal: AbortSignal.timeout(9000) }); if (r.ok) j = await r.json(); } catch { j = null; }
+  if (!Array.isArray(j)) throw new Error("Jupiter's token search didn't answer just now. Try again in a moment.");   // never report a failed search as zero copies
+  const all = Array.isArray(j) ? j : [], same = all.filter(t => String(t.symbol || '').replace(/^\$/, '').toLowerCase() === key).sort((a, b) => (b.mcap || 0) - (a.mcap || 0));
+  const v = { ok: true, symbol: sym, count: same.length, capped: all.length >= 20, all: same.map(t => [t.id, t.mcap ? Math.round(t.mcap) : 0]), coins: same.slice(0, 12).map(t => ({ mint: t.id, name: t.name || null, icon: t.icon || null, mcap: t.mcap ? Math.round(t.mcap) : null, launchpad: t.launchpad || null, at: t.createdAt || null })) };
+  copyCache.set(key, { t: Date.now(), v }); if (copyCache.size > 200) copyCache.clear();
+  return v;
+}
+
+// ---------- can this coin host?
+const WHY = {
+  UnsupportedQuoteMintError: "That coin can't be a queen: it isn't a pump coin and isn't on pump.fun's list of assets.",
+  CurveDepthExceededError: 'That coin is already as deep as pump.fun allows, so it can\'t have ants of its own.',
+  QuoteBondingCurveNotEligibleError: "That pump coin can't be a queen right now (pump.fun doesn't allow it as a quote).",
+  QuoteCurveAwaitingMigrationError: 'That coin is moving to PumpSwap right now. Try again in a few minutes.',
+  QuoteReservesOutOfRangeError: "That coin's price is out of the range pump.fun allows for a queen right now.",
+  QuotePoolNotFoundError: "That coin graduated but its pool wasn't found.",
+};
+const why = e => WHY[(e && (e.name || (e.constructor && e.constructor.name))) || ''] || (e && e.message) || String(e);
+async function check(mintS) {
+  const mint = pk(mintS);
+  let r; try { r = await sdk().resolveQuoteMint(mint); } catch (e) { return { ok: true, can: false, mint: mintS, error: why(e) }; }
+  const g = await global().catch(() => null);
+  const meta = (await jup([mintS]))[mintS] || {};
+  return { ok: true, can: true, mint: mintS, source: r.source, decimals: r.decimals, program: r.quoteTokenProgram.toBase58(), depth: r.pumpQuote ? r.pumpQuote.depth : 0, maxDepth: g ? Number(g.maxCurveDepth || 0) : null, symbol: meta.symbol || null, name: meta.name || null, icon: meta.icon || null, usd: meta.usdPrice ?? null };
+}
+async function balance(walletS, mintS) {
+  const wallet = pk(walletS), mint = pk(mintS);
+  const r = await conn.getParsedTokenAccountsByOwner(wallet, { mint }).catch(() => null);
+  let ui = 0; for (const a of (r && r.value) || []) ui += Number(a.account.data.parsed.info.tokenAmount.uiAmountString || 0);
+  const sol = await conn.getBalance(wallet).catch(() => null);
+  return { ok: true, amount: ui, sol: sol == null ? null : sol / 1e9 };
+}
+
+// ---------- the coin's image and metadata: to IPFS through pump.fun's own upload, or to host's own storage when that fails
+const blob = () => require('@vercel/blob');
+async function pumpIpfs({ buf, type, ext, name, symbol, desc, x, tg, web }) {
+  const fd = new FormData();
+  fd.append('file', new Blob([buf], { type }), 'image.' + ext);
+  fd.append('name', name); fd.append('symbol', symbol); fd.append('description', desc);
+  if (x) fd.append('twitter', x); if (tg) fd.append('telegram', tg); if (web) fd.append('website', web);
+  fd.append('showName', 'true');
+  const r = await fetch('https://pump.fun/api/ipfs', { method: 'POST', body: fd, headers: { accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`pump.fun upload ${r.status}: ${text.replace(/\s+/g, ' ').slice(0, 120)}`);
+  let j; try { j = JSON.parse(text); } catch { throw new Error('pump.fun upload returned no JSON'); }
+  if (!j || !j.metadataUri) throw new Error('pump.fun upload returned no metadata link');
+  return { uri: j.metadataUri, image: (j.metadata && j.metadata.image) || null, via: 'ipfs' };
+}
+async function ownStore({ buf, type, ext, name, symbol, desc, x, tg, web, site }) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error('no storage connected');
+  const id = require('crypto').createHash('sha256').update(buf).update(name + '|' + symbol + '|' + desc + '|' + x + '|' + tg + '|' + web).digest('hex').slice(0, 12);
+  const put = (path, data, contentType) => blob().put('ant1/' + path, data, { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType, cacheControlMaxAge: 31536000 }).then(r => r.url);
+  const image = await put(`i/${id}.${ext}`, buf, type);
+  const json = { name, symbol, description: desc, image, showName: true, createdOn: site, ...(x && { twitter: x }), ...(tg && { telegram: tg }), ...(web && { website: web }) };
+  const stored = await put(`m/${id}.json`, JSON.stringify(json), 'application/json');
+  // the coin carries a short link (it has to fit in the launch transaction); host's domain serves the stored file behind it
+  return { uri: site + '/m/' + id, stored, image, via: 'ant1' };
+}
+async function meta(req) {
+  const b = await body(req);
+  const name = clean(b.name, 32).replace(/[<>]/g, ''), symbol = clean(b.symbol, 10).toUpperCase().replace(/^\$/, ''), desc0 = clean(b.desc, 500);
+  if (!name) throw new Error('Give your coin a name.');
+  if (!/^[A-Z0-9]{1,10}$/.test(symbol)) throw new Error('The ticker can use letters and numbers, up to 10.');
+  const m = /^data:(image\/(png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.image || ''));
+  if (!m) throw new Error('Add an image (png, jpg, webp or gif).');
+  const buf = Buffer.from(m[3], 'base64'); if (buf.length > 1.5e6) throw new Error('That image is too big.');
+  const x = link(b.x, /^https:\/\/(www\.)?(x|twitter)\.com\//i, 'X'), tg = link(b.telegram, /^https:\/\/(www\.)?t\.me\//i, 'Telegram'), web = link(b.website, null, 'website');
+  const args = { site: siteOf(req), buf, type: m[1], ext: m[2] === 'jpeg' ? 'jpg' : m[2], name, symbol, desc: desc0 || `${name} ($${symbol}), an ant on ANT1: priced in its queen, so every buy feeds her.`, x, tg, web };
+  const why = [];
+  try { return { ok: true, name, symbol, ...(await pumpIpfs(args)) }; } catch (e) { why.push(e.message); }
+  try { return { ok: true, name, symbol, ...(await ownStore(args)) }; } catch (e) { why.push(e.message); }
+  throw new Error("The image upload didn't go through. Try again in a moment. (" + why.join(' · ').slice(0, 260) + ')');
+}
+
+// ---------- build: create the coin priced in the host, and the creator's first buy, in one transaction
+const toRaw = (ui, dec) => { const [i, f = ''] = String(ui).split('.'); return new BN((i || '0') + (f + '0'.repeat(dec)).slice(0, dec)); };
+async function build(req) {
+  const b = await body(req);
+  const wallet = pk(b.wallet, 'Connect a wallet first.'), mint = pk(b.mint, 'The new coin address is missing. Reload and try again.'), host = pk(b.host, 'Pick a queen first.');
+  if (!PublicKey.isOnCurve(mint.toBytes())) throw new Error('The new coin address is not a key. Reload and try again.');
+  const name = clean(b.name, 32).replace(/[<>]/g, ''), symbol = clean(b.symbol, 10).toUpperCase().replace(/^\$/, '');
+  if (!name || !/^[A-Z0-9]{1,10}$/.test(symbol)) throw new Error('Give your coin a name and a ticker.');
+  const uri = clean(b.uri, 200); if (!/^https:\/\/\S+$/.test(uri)) throw new Error('The metadata link is missing. Upload the image again.');
+  const dry = !!b.dry;
+  const s = sdk();
+  let rq; try { rq = await s.resolveQuoteMint(host); } catch (e) { throw new Error(why(e)); }
+  const g = await global();
+  const buyUi = Math.max(0, Number(b.buyHost) || 0);
+  let ixs, tokens = null;
+  const pumpQuote = rq.pumpQuote ? rq.pumpQuote.accounts : undefined;
+  if (buyUi > 0) {
+    const quoteAmount = toRaw(buyUi, rq.decimals);
+    if (!dry) {
+      const bal = await balance(wallet.toBase58(), host.toBase58());
+      if (bal.amount < buyUi) throw new Error(`Your wallet holds ${bal.amount} of the queen, less than the ${buyUi} you want to buy with.`);
+    }
+    const [feeConfig, qc] = await Promise.all([s.fetchFeeConfig().catch(() => null), rq.source === 'quoteControl' ? s.fetchQuoteControl().catch(() => null) : null]);
+    const amount = P.getBuyTokenAmountFromSolAmount({ global: g, feeConfig, mintSupply: null, bondingCurve: null, amount: quoteAmount, quoteMint: rq.mint, quoteControl: qc, pumpQuote: rq.pumpQuote ? rq.pumpQuote.curve : undefined });
+    tokens = Number(amount.toString()) / 1e6;
+    ixs = await P.PUMP_SDK.createV2AndBuyV2Instructions({ global: g, mint, name, symbol, uri, creator: wallet, user: wallet, amount, quoteAmount, mayhemMode: false, quoteMint: rq.mint, quoteTokenProgram: rq.quoteTokenProgram, pumpQuote, slippage: 3 });
+  } else {
+    ixs = [await P.PUMP_SDK.createV2Instruction({ mint, name, symbol, uri, creator: wallet, user: wallet, mayhemMode: false, quoteMint: rq.mint, quoteTokenProgram: rq.quoteTokenProgram, pumpQuote })];
+  }
+  const CB = ComputeBudgetProgram.programId; ixs = ixs.filter(ix => !ix.programId.equals(CB));
+  const tag = [new TransactionInstruction({ programId: MEMO, keys: [], data: Buffer.from(`ant1:${mint.toBase58()}:${host.toBase58()}`) }), SystemProgram.transfer({ fromPubkey: wallet, toPubkey: TAG, lamports: 0 })];
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
+  const compile = (units, memo) => new VersionedTransaction(new TransactionMessage({ payerKey: wallet, recentBlockhash: blockhash, instructions: [ComputeBudgetProgram.setComputeUnitLimit({ units }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports: CU_PRICE }), ...ixs, ...(memo ? tag : tag.slice(1))] }).compileToV0Message());
+  const size = t => { try { return t.serialize().length; } catch { return 9999; } };
+  let memo = true, tx = compile(700000, true);
+  if (size(tx) > 1232) { memo = false; tx = compile(700000, false); }
+  if (size(tx) > 1232) throw new Error(buyUi > 0 ? 'This launch is too big for one transaction.' : 'This launch is too big for one transaction. Try a shorter name or ticker.');
+  const signers = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures).map(k => k.toBase58());
+  if (signers.length !== 2 || signers[0] !== wallet.toBase58() || signers[1] !== mint.toBase58()) throw new Error('Unexpected signers: ' + signers.join(', '));
+  const bal = await conn.getBalance(wallet).catch(() => null);
+  const sim = await conn.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed', accounts: { encoding: 'base64', addresses: [wallet.toBase58()] } });
+  const logs = (sim.value.logs || []).slice(-14);
+  if (sim.value.err) {
+    const all = (sim.value.logs || []).join('\n') + JSON.stringify(sim.value.err);
+    if (/insufficient lamports|insufficient funds|InsufficientFunds/i.test(all)) throw Object.assign(new Error('Your wallet needs a little more SOL for this launch (about 0.03 SOL for the new accounts and fees).'), { logs });
+    throw Object.assign(new Error('The launch failed when we tried it against Solana, so nothing was sent. ' + (logs.filter(l => /error|failed/i.test(l)).slice(-1)[0] || JSON.stringify(sim.value.err)).slice(0, 220)), { logs });
+  }
+  const used = sim.value.unitsConsumed || 300000, units = Math.min(1400000, Math.ceil(used * 1.15) + 20000);
+  tx = compile(units, memo);
+  const post = sim.value.accounts && sim.value.accounts[0] ? sim.value.accounts[0].lamports : null;
+  return { ok: true, tx: Buffer.from(tx.serialize()).toString('base64'), mint: mint.toBase58(), host: host.toBase58(), source: rq.source, depth: rq.pumpQuote ? rq.pumpQuote.depth : 0, lastValid: lastValidBlockHeight, units, bytes: tx.serialize().length, memo, tokens, cost: bal != null && post != null ? Math.max(0, (bal - post) / 1e9) : null, ...(dry && { dry: true, logs, used }) };
+}
+
+// ---------- the creator's first buy, right after the launch: buy_v2 on the new coin, paid in the host
+async function buyOp(req) {
+  const b = await body(req);
+  const wallet = pk(b.wallet, 'Connect a wallet first.'), mint = pk(b.mint, 'The coin address is missing.');
+  const ui = Math.max(0, Number(b.amount) || 0); if (!ui) throw new Error('Pick an amount to buy with.');
+  const dry = !!b.dry, s = sdk();
+  const mi = await conn.getAccountInfo(mint).catch(() => null);
+  if (!mi) throw Object.assign(new Error('The coin is not on chain yet. Try again in a few seconds.'), { code: 'pending' });
+  const tokenProgram = mi.owner;
+  let st; try { st = await s.fetchBuyState(mint, wallet, tokenProgram, b.host ? pk(b.host) : undefined); } catch (e) { throw Object.assign(new Error('The coin\'s curve is not readable yet. Try again in a few seconds.'), { code: 'pending' }); }
+  const qm = st.quoteMint, isSol = qm.toBase58() === SOL58;
+  let dec = 9;
+  if (!isSol) { const q = await conn.getParsedAccountInfo(qm).catch(() => null); dec = q && q.value && q.value.data && q.value.data.parsed ? q.value.data.parsed.info.decimals : null; if (dec == null) throw new Error("The queen's decimals could not be read. Try again."); }
+  const quoteAmount = toRaw(ui, dec);
+  if (!dry) {
+    if (isSol) { const lam = await conn.getBalance(wallet).catch(() => 0); if (lam / 1e9 < ui + 0.01) throw new Error(`Your wallet holds ${(lam / 1e9).toFixed(4)} SOL, not enough for a ${ui} SOL buy plus fees.`); }
+    else { const bal = await balance(wallet.toBase58(), qm.toBase58()); if (bal.amount < ui) throw new Error(`Your wallet holds ${bal.amount} of the queen, less than the ${ui} you want to buy with.`); }
+  }
+  const [g, feeConfig, qc] = await Promise.all([global(), s.fetchFeeConfig().catch(() => null), s.fetchQuoteControl().catch(() => null)]);
+  const amount = P.getBuyTokenAmountFromSolAmount({ global: g, feeConfig, mintSupply: st.bondingCurve.tokenTotalSupply, bondingCurve: st.bondingCurve, amount: quoteAmount, quoteMint: qm, quoteControl: qc, quoteTransferFee: st.quoteTransferFee });
+  let ixs = await P.PUMP_SDK.buyV2Instructions({ global: g, bondingCurveAccountInfo: st.bondingCurveAccountInfo, bondingCurve: st.bondingCurve, associatedUserAccountInfo: st.associatedUserAccountInfo, mint, user: wallet, amount, quoteAmount, slippage: 5, tokenProgram, quoteTokenProgram: st.quoteTokenProgram });
+  const CB = ComputeBudgetProgram.programId; ixs = ixs.filter(ix => !ix.programId.equals(CB));
+  const tag = SystemProgram.transfer({ fromPubkey: wallet, toPubkey: TAG, lamports: 0 });
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
+  const compile = units => new VersionedTransaction(new TransactionMessage({ payerKey: wallet, recentBlockhash: blockhash, instructions: [ComputeBudgetProgram.setComputeUnitLimit({ units }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports: CU_PRICE }), ...ixs, tag] }).compileToV0Message());
+  let tx; try { tx = compile(600000); tx.serialize(); } catch { throw new Error('This buy is too big for one transaction.'); }
+  const sim = await conn.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' });
+  const logs = (sim.value.logs || []).slice(-14);
+  if (sim.value.err) {
+    const all = (sim.value.logs || []).join('\n') + JSON.stringify(sim.value.err);
+    if (/insufficient lamports|insufficient funds|InsufficientFunds/i.test(all)) throw Object.assign(new Error('Your wallet is short for this buy and its fees.'), { logs });
+    throw Object.assign(new Error('The buy failed when we tried it against Solana, so nothing was sent. ' + (logs.filter(l => /error|failed/i.test(l)).slice(-1)[0] || JSON.stringify(sim.value.err)).slice(0, 220)), { logs });
+  }
+  const used = sim.value.unitsConsumed || 200000; tx = compile(Math.min(1400000, Math.ceil(used * 1.15) + 20000));
+  return { ok: true, tx: Buffer.from(tx.serialize()).toString('base64'), lastValid: lastValidBlockHeight, tokens: Number(amount.toString()) / 1e6, bytes: tx.serialize().length, ...(dry && { dry: true, used, logs }) };
+}
+
+// ---------- buy an ant with SOL: SOL › queen › ant in one pump swap (pump-amm multi_hop_swap)
+const ZERO58 = '11111111111111111111111111111111';
+async function quoteChain(mint) {
+  // walk from the ant down its quote chain: ant ← queen ← ... ← SOL. Every step must be a pump coin.
+  const path = [mint]; let cur = mint;
+  for (let i = 0; i < 7; i++) {
+    const ai = await conn.getAccountInfo(P.bondingCurvePda(cur)).catch(() => null);
+    if (!ai) return null;   // not a pump coin: the chain doesn't end in SOL
+    const bc = P.PUMP_SDK.decodeBondingCurve(ai), q = bc.quoteMint ? bc.quoteMint.toBase58() : ZERO58;
+    if (q === ZERO58 || q === SOL58) { path.unshift(new PublicKey(SOL58)); return path; }
+    cur = new PublicKey(q); path.unshift(cur);
+  }
+  return null;
+}
+// ---------- what a buy feeds: Jupiter's live price for SOL into a queen (the first hop of every ant buy)
+async function quoteOp(q) {
+  const m = (q.get('mint') || '').trim(); if (!isAddr(m)) throw new Error("That isn't a Solana address.");
+  const sol = Math.min(50, Math.max(0.001, Number(q.get('sol')) || 1));
+  const url = `https://lite-api.jup.ag/swap/v1/quote?inputMint=${SOL58}&outputMint=${m}&amount=${Math.round(sol * 1e9)}&slippageBps=100`;
+  const [meta, r] = await Promise.all([jup([m, SOL58]), fetch(url, { signal: AbortSignal.timeout(9000) }).then(x => (x.ok ? x.json() : null)).catch(() => null)]);
+  if (!r || !r.outAmount) throw new Error("Jupiter didn't price that coin just now.");
+  const t = meta[m] || {}, dec = t.decimals ?? 6, out = Number(r.outAmount) / 10 ** dec;
+  return { ok: true, mint: m, symbol: t.symbol || null, sol, out, usd: t.usdPrice ? out * t.usdPrice : null, solUsd: (meta[SOL58] && meta[SOL58].usdPrice) || null, impact: r.priceImpactPct != null ? Number(r.priceImpactPct) * 100 : null };
+}
+
+// ---------- a coin's line: what it's priced in, down to SOL or a listed asset
+async function lineage(mintS) {
+  const line = [mintS]; let cur = pk(mintS), root = 'asset';
+  for (let i = 0; i < 7; i++) {
+    const ai = await conn.getAccountInfo(P.bondingCurvePda(cur)).catch(() => null);
+    if (!ai) break;                                   // not a pump coin: a listed asset or any other token
+    let q; try { const bc = P.PUMP_SDK.decodeBondingCurve(ai); q = bc.quoteMint ? bc.quoteMint.toBase58() : ZERO58; } catch { break; }
+    if (q === ZERO58 || q === SOL58) { line.unshift(SOL58); root = 'sol'; break; }
+    line.unshift(q); cur = new PublicKey(q);
+  }
+  const meta = await jup(line);
+  return { ok: true, root, line: line.map(m => { const t = meta[m] || {}; return { mint: m, symbol: m === SOL58 ? 'SOL' : t.symbol || null, name: m === SOL58 ? 'Solana' : t.name || null, icon: t.icon || null, usd: t.usdPrice ?? null }; }) };
+}
+// The buy: SOL in, the ant out, through every queen above it. pump.fun's multi_hop_swap takes the whole line in one
+// transaction up to two hops (an ant of a SOL coin). A deeper ant is bought in steps of two hops: each step buys the next
+// coin down the line with what the last one bought, and the client signs them one after another.
+const STEP_HOPS = 2, MAX_TX = 1232;
+async function swapOp(req) {
+  const b = await body(req);
+  const wallet = pk(b.wallet, 'Connect a wallet first.'), mint = pk(b.mint, 'Pick an ant to buy.');
+  const dry = !!b.dry, s = sdk(), slip = Math.min(20, Math.max(1, Number(b.slippage) || 5));
+  const path = await quoteChain(mint);
+  if (!path) throw Object.assign(new Error("This coin isn't priced in SOL down its line (its line starts at a listed asset like ETH or a stock), so it can't be bought with SOL here. Buy it with that asset on pump.fun."), { code: 'nosol' });
+  const steps = Math.ceil((path.length - 1) / STEP_HOPS), step = Math.max(0, Math.min(steps - 1, parseInt(b.step, 10) || 0));
+  const sub = path.slice(step * STEP_HOPS, Math.min(path.length, step * STEP_HOPS + STEP_HOPS + 1));
+  let amountIn;
+  if (step === 0) {
+    const sol = Math.max(0, Number(b.sol) || 0); if (!sol) throw new Error('Enter how much SOL to spend.');
+    if (sol > 50) throw new Error('Keep a single buy at 50 SOL or less.');
+    if (!dry) { const lam = await conn.getBalance(wallet).catch(() => 0); if (lam / 1e9 < sol + 0.01) throw new Error(`Your wallet holds ${(lam / 1e9).toFixed(4)} SOL, not enough for a ${sol} SOL buy plus fees.`); }
+    amountIn = new BN(Math.round(sol * 1e9));
+  } else {
+    if (!/^[0-9]{1,30}$/.test(String(b.amount || ''))) throw new Error('The next step needs the amount the last step bought.');
+    amountIn = new BN(String(b.amount)); if (amountIn.lten(0)) throw new Error('The last step bought nothing to carry on with.');
+  }
+  let hops; try { hops = await s.resolveMultiHopRoute(sub, 'buy'); } catch (e) { throw new Error('No route through the queen right now: ' + (e.message || e).toString().slice(0, 160)); }
+  let out; try { out = await s.simulateMultiHopSwap({ user: wallet, hops, side: 'buy', amountIn }); } catch (e) { throw new Error('The buy failed when we tried it against Solana, so nothing was sent. ' + String(e.message || e).split('\n')[0].slice(0, 200)); }
+  const minOut = out.mul(new BN(10000 - slip * 100)).div(new BN(10000));
+  let ixs = await P.PUMP_SDK.multiHopSwapInstructions({ user: wallet, hops, side: 'buy', amountIn, minAmountOut: minOut });
+  const CB = ComputeBudgetProgram.programId; ixs = ixs.filter(ix => !ix.programId.equals(CB));
+  const tag = SystemProgram.transfer({ fromPubkey: wallet, toPubkey: TAG, lamports: 0 });
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
+  const compile = units => new VersionedTransaction(new TransactionMessage({ payerKey: wallet, recentBlockhash: blockhash, instructions: [ComputeBudgetProgram.setComputeUnitLimit({ units }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports: CU_PRICE }), ...ixs, tag] }).compileToV0Message());
+  const size = t => { try { return t.serialize().length; } catch { return Infinity; } };   // serialize() doesn't always throw past the limit: measure
+  let tx = compile(1000000); if (size(tx) > MAX_TX) throw new Error('This step is too long for one Solana transaction.');
+  const sim = await conn.simulateTransaction(tx, { sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' });
+  const logs = (sim.value.logs || []).slice(-12);
+  if (sim.value.err) throw Object.assign(new Error('The buy failed when we tried it against Solana, so nothing was sent. ' + (logs.filter(l => /error|failed/i.test(l)).slice(-1)[0] || JSON.stringify(sim.value.err)).slice(0, 200)), { logs });
+  const used = sim.value.unitsConsumed || 400000; tx = compile(Math.min(1400000, Math.ceil(used * 1.15) + 30000));
+  return {
+    ok: true, tx: Buffer.from(tx.serialize()).toString('base64'), lastValid: lastValidBlockHeight, bytes: size(tx), cu: used,
+    path: path.map(k => k.toBase58()), hops: hops.length, step, steps, from: sub[0].toBase58(), to: sub[sub.length - 1].toBase58(),
+    tokens: Number(out.toString()) / 1e6, minTokens: Number(minOut.toString()) / 1e6,
+    next: step + 1 < steps ? { step: step + 1, amount: minOut.toString() } : null, ...(dry && { dry: true }),
+  };
+}
+
+// ---------- the vamps of a coin: every other token with its ticker, and what they hold between them
+async function vamps(mintS) {
+  const mint = pk(mintS);
+  const meta = (await jup([mintS]))[mintS] || {};
+  const sym = String(meta.symbol || '').replace(/^\$/, '');
+  if (!sym) return { ok: true, mint: mintS, symbol: null, count: 0, vamps: [], note: "Jupiter doesn't know this coin's ticker yet." };
+  const c = await copies(sym);
+  const others = c.coins.filter(x => x.mint !== mintS), rest = (c.all || []).filter(x => x[0] !== mintS);
+  return { ok: true, mint: mintS, symbol: sym, name: meta.name || null, icon: meta.icon || null, mcap: meta.mcap ? Math.round(meta.mcap) : null, count: rest.length || others.length, capped: c.capped, vampsMcap: (rest.length ? rest.map(x => x[1]) : others.map(x => x.mcap || 0)).reduce((a, x) => a + (x || 0), 0), vamps: others };
+}
+
+// ---------- a coin's metadata file, served from storage under a short link
+async function metaFile(id, res) {
+  if (!/^[0-9a-f]{12}$/.test(id)) return out(res, 404, { ok: false, error: 'not found' });
+  try {
+    const h = await blob().head('ant1/m/' + id + '.json');
+    const r = await fetch(h.url, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error();
+    res.statusCode = 200; res.setHeader('content-type', 'application/json; charset=utf-8'); res.setHeader('cache-control', 'public, s-maxage=31536000, max-age=86400, immutable'); res.setHeader('access-control-allow-origin', '*');
+    return res.end(await r.text());
+  } catch { return out(res, 404, { ok: false, error: 'not found' }); }
+}
+
+// ---------- send: only host launches, to every RPC at once
+async function send(req) {
+  const b = await body(req); const raw = Buffer.from(String(b.tx || ''), 'base64');
+  if (raw.length < 200 || raw.length > 1232) throw new Error('That is not an ANT1 transaction.');
+  let tx; try { tx = VersionedTransaction.deserialize(raw); } catch { throw new Error('That is not an ANT1 transaction.'); }
+  const keys = tx.message.staticAccountKeys.map(k => k.toBase58());
+  const AMM58 = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+  if (!(keys.includes(PUMP58) || keys.includes(AMM58)) || !keys.includes(TAG58)) throw new Error('ANT1 only sends its own transactions.');
+  if (tx.signatures.some(s => s.every(x => x === 0))) throw new Error('The launch is missing a signature. Sign it in your wallet and try again.');
+  const sig = b58(tx.signatures[0]), b64 = raw.toString('base64');
+  const rs = await Promise.allSettled(RPCS.map(u => rawRpc(u, 'sendTransaction', [b64, { encoding: 'base64', skipPreflight: true, maxRetries: 0 }])));
+  if (!rs.some(r => r.status === 'fulfilled' && r.value && !r.value.error)) {
+    const w = rs.map(r => r.status === 'fulfilled' ? r.value && r.value.error && r.value.error.message : r.reason && r.reason.message).filter(Boolean)[0] || 'no answer';
+    if (/blockhash not found/i.test(w)) throw Object.assign(new Error('This launch waited too long to be signed. Build it again.'), { code: 'expired' });
+    throw new Error('Solana did not take the launch: ' + w.slice(0, 160));
+  }
+  return { ok: true, sig };
+}
+async function status(q) {
+  const sig = q.get('sig'); if (!isSig(sig)) throw new Error('bad signature');
+  const h = +q.get('h') || 0;
+  const r = await conn.getSignatureStatuses([sig], { searchTransactionHistory: false }); const s = r && r.value && r.value[0];
+  if (s) { if (s.err) return { ok: true, state: 'failed', slot: s.slot, err: JSON.stringify(s.err).slice(0, 200) }; if (s.confirmationStatus === 'confirmed' || s.confirmationStatus === 'finalized') return { ok: true, state: 'confirmed', slot: s.slot }; return { ok: true, state: 'pending', slot: s.slot }; }
+  if (h) { const now = await conn.getBlockHeight('confirmed').catch(() => 0); if (now && now > h) return { ok: true, state: 'expired' }; }
+  return { ok: true, state: 'pending' };
+}
+
+// ---------- the guests: every coin launched through host
+let listCache = null;
+async function list() {
+  if (listCache && Date.now() - listCache.t < 20000) return listCache.v;
+  const sigs = (await conn.getSignaturesForAddress(TAG, { limit: 200 })).filter(s => !s.err);
+  const coins = [];
+  for (let i = 0; i < sigs.length; i += 50) {
+    const txs = await conn.getParsedTransactions(sigs.slice(i, i + 50).map(s => s.signature), { maxSupportedTransactionVersion: 0, commitment: 'confirmed' }).catch(() => []);
+    txs.forEach((t, k) => {
+      if (!t || !t.meta || t.meta.err) return;
+      const ak = t.transaction.message.accountKeys, keys = ak.map(x => x.pubkey.toBase58()); if (!keys.includes(PUMP58)) return;
+      const m = ((t.meta.logMessages) || []).map(l => /"ant1:([1-9A-HJ-NP-Za-km-z]{32,44}):([1-9A-HJ-NP-Za-km-z]{32,44})"/.exec(l)).find(Boolean);
+      let mint = m && m[1], host = m && m[2];
+      if (!m) {
+        // a launch too big for the memo: the new coin is the second signer, and the host is the other mint the launch touched
+        mint = ak.filter(x => x.signer).map(x => x.pubkey.toBase58())[1];
+        host = [...new Set([...(t.meta.postTokenBalances || []), ...(t.meta.preTokenBalances || [])].map(b => b.mint))].find(x => x && x !== mint && x !== SOL58);
+      }
+      if (mint) coins.push({ mint, host: host || null, sig: sigs[i + k].signature, time: t.blockTime || null, creator: keys[0] });
+    });
+  }
+  let top = coins.slice(0, 60);
+  if (top.length) {
+    const [g, curves] = await Promise.all([global().catch(() => null), conn.getMultipleAccountsInfo(top.map(c => P.bondingCurvePda(c.mint))).catch(() => [])]);
+    top.forEach((c, i) => {
+      try {
+        const bc = curves[i] && P.PUMP_SDK.decodeBondingCurve(curves[i]); if (!bc) return;
+        if (bc.quoteMint) c.host = bc.quoteMint.toBase58();   // the curve itself says what it's priced in
+        if (g) { const init = Number(g.initialRealTokenReserves.toString()), real = Number(bc.realTokenReserves.toString()); c.curve = bc.complete ? 100 : Math.max(0, Math.min(100, (1 - real / init) * 100)); c.complete = !!bc.complete; }
+        c.foodRaw = bc.realQuoteReserves ? bc.realQuoteReserves.toString() : '0';
+      } catch { }
+    });
+    top = top.filter(c => c.host);
+    const meta = await jup([...new Set(top.flatMap(c => [c.mint, c.host]))]);
+    top.forEach(c => { const t = meta[c.mint] || {}, h = meta[c.host] || {}; const dec = h.decimals ?? 6; Object.assign(c, { symbol: t.symbol || null, name: t.name || null, image: t.icon || null, mcap: t.mcap ? Math.round(t.mcap) : null, hostSymbol: h.symbol || null, hostIcon: h.icon || null, hostUsd: h.usdPrice ?? null, food: Number(c.foodRaw || 0) / 10 ** dec }); delete c.foodRaw; });
+  }
+  const v = { ok: true, tag: TAG58, count: Math.max(top.length, coins.filter(c => c.host).length), coins: top };
+  listCache = { t: Date.now(), v }; return v;
+}
+
+module.exports = async (req, res) => {
+  const u = new URL(req.url, 'http://x'), q = u.searchParams, p = (q.get('__p') || '').replace(/\/+$/, '');
+  try {
+    if (p === 'config') { const g = await global().catch(() => null); return out(res, 200, { ok: true, tag: TAG58, maxDepth: g ? Number(g.maxCurveDepth || 0) : null }, 's-maxage=300'); }
+    if (p === 'hosts') return out(res, 200, await hosts(), 's-maxage=120, stale-while-revalidate=600');
+    if (p === 'check') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); return out(res, 200, await check(m), 's-maxage=30'); }
+    if (p === 'balance') return out(res, 200, await balance(q.get('wallet'), q.get('mint')));
+    if (p === 'list') return out(res, 200, await list(), 's-maxage=15, stale-while-revalidate=60');
+    if (p === 'pump') return out(res, 200, await pumpBoard(), 's-maxage=60, stale-while-revalidate=300');
+    if (p === 'copies') return out(res, 200, await copies(q.get('symbol')), 's-maxage=120, stale-while-revalidate=600');
+    if (p === 'status') return out(res, 200, await status(q));
+    if (req.method === 'POST' && p === 'meta') return out(res, 200, await meta(req));
+    if (req.method === 'POST' && p === 'build') return out(res, 200, await build(req));
+    if (req.method === 'POST' && p === 'buy') return out(res, 200, await buyOp(req));
+    if (req.method === 'POST' && p === 'swap') return out(res, 200, await swapOp(req));
+    if (p === 'quote') return out(res, 200, await quoteOp(q), 's-maxage=20, stale-while-revalidate=60');
+    if (p === 'chain') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); return out(res, 200, await lineage(m), 's-maxage=60'); }
+    if (p === 'vamps') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); return out(res, 200, await vamps(m), 's-maxage=120, stale-while-revalidate=600'); }
+    if (p === 'm') return metaFile(String(q.get('id') || ''), res);
+    if (req.method === 'POST' && p === 'send') return out(res, 200, await send(req));
+    return out(res, 404, { ok: false, error: 'not found' });
+  } catch (e) {
+    return out(res, 400, { ok: false, code: e.code || 'error', error: e.message || String(e), ...(e.logs && { logs: e.logs }) });
+  }
+};
