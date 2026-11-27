@@ -708,9 +708,12 @@ function startPops() {
   const go = () => setTimeout(showPop, 2200);
   if (document.getElementById('intro')) addEventListener('ant1:intro-done', go, { once: true }); else go();
 }
+// never cover a field someone is typing in, and give phones (where a pop spans the screen) longer breaks
+const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); };
+const popGap = () => (matchMedia('(max-width: 760px)').matches ? 6500 : 2600);
 function showPop() {
   const box = $('#pops'); if (!box || !POPS.on) return;
-  if (!POPS.list.length || document.hidden) { setTimeout(showPop, 3000); return; }
+  if (!POPS.list.length || document.hidden || typing()) { setTimeout(showPop, 3000); return; }
   const e = POPS.list[POPS.i++ % POPS.list.length], LIFE = 4600, ext = e.href && /^https:/.test(e.href);
   box.innerHTML = `<a class="pop k-${e.k}" href="${esc(e.href || '#radar')}"${ext ? ' target="_blank" rel="noopener"' : ''} style="--life:${LIFE}ms"><span class="pp-ic">${pic(e.icon, e.sym)}</span><span class="pp-t"><em>${e.tag}</em><b>${esc(e.sym)}</b><small>${e.line}</small></span><span class="pp-go">${e.go}</span><i class="pp-bar"></i></a><button class="pp-x" type="button" aria-label="Hide live pop-ups">✕</button>`;
   const card = box.querySelector('.pop'); let hover = false, left = LIFE;
@@ -720,7 +723,8 @@ function showPop() {
   const iv = setInterval(() => {
     if (!POPS.on) return clearInterval(iv);
     if (!hover && !document.hidden) left -= 100;
-    if (left <= 0) { clearInterval(iv); card.classList.add('out'); setTimeout(() => { if (box.contains(card)) box.innerHTML = ''; setTimeout(showPop, 900); }, 380); }
+    if (typing()) left = 0;
+    if (left <= 0) { clearInterval(iv); card.classList.add('out'); setTimeout(() => { if (box.contains(card)) box.innerHTML = ''; setTimeout(showPop, popGap()); }, 380); }
   }, 100);
 }
 
