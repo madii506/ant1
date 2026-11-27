@@ -105,7 +105,9 @@ async function pumpBoard() {
   if (pumpCache && Date.now() - pumpCache.t < 60000) return pumpCache.v;
   const get = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(9000) }); return r.ok ? await r.json() : []; } catch { return []; } };
   const [tr, rc] = await Promise.all([get('https://lite-api.jup.ag/tokens/v2/toptrending/1h?limit=100'), get('https://lite-api.jup.ag/tokens/v2/recent')]);
-  const isPump = t => t && typeof t.id === 'string' && (/pump$/.test(t.id) || t.launchpad === 'pump.fun');
+  // the home page shows these to everyone: coins named with a slur stay off it
+  const SLUR = /n[i1!|l]+[gq]{2,}|f[a@4]gg?[o0]t|\bf[a@4]gs?\b|\bk[i1]kes?\b|\bch[i1]nks?\b|\bsp[i1]cs?\b|tr[a@4]nn(y|ie)|wetbacks?|\bg[o0]{2}ks?\b|\bbeaners?\b|\bdykes?\b/i;
+  const isPump = t => t && typeof t.id === 'string' && (/pump$/.test(t.id) || t.launchpad === 'pump.fun') && !SLUR.test(`${t.name || ''} ${t.symbol || ''}`);
   const pc = x => x == null ? null : +Number(x).toFixed(2);
   const map = t => ({ mint: t.id, symbol: t.symbol || null, name: t.name || null, icon: t.icon || null, usd: t.usdPrice ?? null, mcap: t.mcap ? Math.round(t.mcap) : null, ch1h: pc(t.stats1h && t.stats1h.priceChange), ch24h: pc(t.stats24h && t.stats24h.priceChange), traders1h: (t.stats1h && t.stats1h.numTraders) || null, grad: !!t.graduatedPool, at: t.createdAt || null });
   const v = { ok: true, trending: (Array.isArray(tr) ? tr : []).filter(isPump).slice(0, 24).map(map), fresh: (Array.isArray(rc) ? rc : []).filter(isPump).slice(0, 12).map(map) };
@@ -470,7 +472,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST' && p === 'swap') return out(res, 200, await swapOp(req));
     if (p === 'quote') return out(res, 200, await quoteOp(q), 's-maxage=20, stale-while-revalidate=60');
     if (p === 'chain') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); return out(res, 200, await lineage(m), 's-maxage=60'); }
-    if (p === 'vamps') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); return out(res, 200, await vamps(m), 's-maxage=120, stale-while-revalidate=600'); }
+    if (p === 'vamps') { const m = (q.get('mint') || '').trim(); if (!isAddr(m)) return out(res, 400, { ok: false, error: "That isn't a Solana address." }); const v = await vamps(m); return out(res, 200, v, v.symbol ? 's-maxage=120, stale-while-revalidate=600' : 'no-store'); }
     if (p === 'm') return metaFile(String(q.get('id') || ''), res);
     if (req.method === 'POST' && p === 'send') return out(res, 200, await send(req));
     return out(res, 404, { ok: false, error: 'not found' });
