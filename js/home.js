@@ -31,7 +31,7 @@ setTimeout(() => $$('.rv').forEach(el => { const r = el.getBoundingClientRect();
 // Click anywhere to drop food: the nearest free ant fetches it.
 (() => {
   const cv = $('#cvHero'); if (!cv) return;
-  let W = 0, H = 0, D = 1, Q = { x: 0, y: 0, R: 100, gulp: 0 }, trails = [], ants = [], crumbs = [], rings = [], bits = [], splashes = [], layer = null, last = 0, auto = 2.5, autoN = 0;
+  let W = 0, H = 0, D = 1, Q = { x: 0, y: 0, R: 100, gulp: 0 }, trails = [], ants = [], crumbs = [], rings = [], bits = [], splashes = [], tags = [], layer = null, last = 0, auto = 2.5, autoN = 0;
   const LANE = 4.2;
   const layout = () => {
     const r = cv.getBoundingClientRect(); W = r.width; H = r.height; D = Math.min(W < 760 ? 1.5 : 2, devicePixelRatio || 1);
@@ -67,12 +67,12 @@ setTimeout(() => $$('.rv').forEach(el => { const r = el.getBoundingClientRect();
     const T = trails[a.tr], [x, y, h] = along(T.pts, T.cum, a.s), side = a.dir > 0 ? 1 : -1;
     return [x - Math.sin(h) * LANE * side, y + Math.cos(h) * LANE * side, a.dir > 0 ? h : h + Math.PI];
   };
-  const deliver = (x, y, big) => { Q.gulp = Math.min(0.07, Q.gulp + (big ? 0.03 : 0.012)); if (big) rings.push({ t: 0 }); splashes.push({ x, y, t: 0 }); bits.push({ x, y, t: 0 }); };
-  const drop = (x, y) => {
+  const deliver = (x, y, big, label) => { Q.gulp = Math.min(0.07, Q.gulp + (big ? 0.03 : 0.012)); if (big) rings.push({ t: 0 }); splashes.push({ x, y, t: 0 }); bits.push({ x, y, t: 0 }); if (label) tags.push({ x, y, t: 0, label }); };
+  const drop = (x, y, label) => {
     if (Math.hypot(x - Q.x, y - Q.y) < Q.R + 10 || crumbs.length > 10) return;
     let best = null, bd = 1e9;
     for (const a of ants) { if (a.free) continue; const [ax, ay] = posOf(a), d = Math.hypot(ax - x, ay - y) + (a.carry ? 420 : 0); if (d < bd) { bd = d; best = a; } }
-    const cr = { x, y, t: 0, taken: false }; crumbs.push(cr);
+    const cr = { x, y, t: 0, taken: false, label: label || null }; crumbs.push(cr);
     if (!best) return;
     const [ax, ay] = posOf(best), mid = [(ax + x) / 2 + (y - ay) * 0.18, (ay + y) / 2 - (x - ax) * 0.18], pts = bez([ax, ay], mid, [x, y], 3);
     best.free = { pts, cum: lengths(pts), s: 0, stage: 'fetch', cr }; best.carry = false;
@@ -86,12 +86,12 @@ setTimeout(() => $$('.rv').forEach(el => { const r = el.getBoundingClientRect();
         const f = a.free; f.s += a.v * 1.25 * dt;
         if (f.s >= f.cum[f.cum.length - 1]) {
           if (f.stage === 'fetch') {
-            f.cr.taken = true; crumbs = crumbs.filter(c => c !== f.cr); a.carry = true;
+            f.cr.taken = true; crumbs = crumbs.filter(c => c !== f.cr); a.carry = true; a.label = f.cr.label;
             const s0 = [f.cr.x, f.cr.y], ang = Math.atan2(s0[1] - Q.y, s0[0] - Q.x), e = [Q.x + Math.cos(ang) * (Q.R + 5), Q.y + Math.sin(ang) * (Q.R + 5)];
             const mid = [(s0[0] + e[0]) / 2 + (e[1] - s0[1]) * 0.12, (s0[1] + e[1]) / 2 - (e[0] - s0[0]) * 0.12], pts = bez(s0, mid, e, 3);
             a.free = { pts, cum: lengths(pts), s: 0, stage: 'home' };
           } else {
-            const [x, y] = along(f.pts, f.cum, f.s); deliver(x, y, true); a.carry = false;
+            const [x, y] = along(f.pts, f.cum, f.s); deliver(x, y, true, a.label); a.carry = false; a.label = null;
             let bi = 0, bd = 1e9; trails.forEach((t, i) => { const p = t.pts[t.pts.length - 1], d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; bi = i; } });
             a.free = null; a.tr = bi; a.dir = -1; a.s = trails[bi].cum[trails[bi].cum.length - 1];
           }
@@ -105,8 +105,9 @@ setTimeout(() => $$('.rv').forEach(el => { const r = el.getBoundingClientRect();
     }
     rings.forEach(r => (r.t += dt / 1.3)); rings = rings.filter(r => r.t < 1);
     splashes.forEach(p => (p.t += dt / 0.7)); splashes = splashes.filter(p => p.t < 1);
+    tags.forEach(p => (p.t += dt / 1.6)); tags = tags.filter(p => p.t < 1);
     // every few seconds the colony finds food on its own, so you can see what a click does
-    auto -= dt; if (auto <= 0 && !crumbs.length) { auto = 5.5; autoN++; const m = W < 760, fx = m ? [0.2, 0.8, 0.5, 0.3, 0.7] : [0.5, 0.62, 0.9, 0.42, 0.97], fy = m ? [0.68, 0.7, 0.66, 0.92, 0.9] : [0.86, 0.12, 0.9, 0.93, 0.5]; drop(W * fx[autoN % 5], H * fy[autoN % 5]); }
+    auto -= dt; if (auto <= 0 && !crumbs.length) { auto = 4.2; autoN++; const m = W < 760, fx = m ? [0.2, 0.8, 0.5, 0.3, 0.7] : [0.5, 0.62, 0.9, 0.42, 0.97], fy = m ? [0.68, 0.7, 0.66, 0.92, 0.9] : [0.86, 0.12, 0.9, 0.93, 0.5]; const live = trending.length ? trending[autoN % Math.min(12, trending.length)] : null; drop(W * fx[autoN % 5], H * fy[autoN % 5], live ? sym(live.symbol) : null); }
     bits.forEach(b => (b.t += dt / 0.6)); bits = bits.filter(b => b.t < 1);
     crumbs.forEach(c => (c.t += dt));
   };
@@ -127,9 +128,21 @@ setTimeout(() => $$('.rv').forEach(el => { const r = el.getBoundingClientRect();
       for (let k = 1; k <= 9; k++) { const s2 = a.s - k * 6 * a.dir; if (s2 < 0) break; const [x, y, h] = along(T.pts, T.cum, s2); c.fillStyle = `rgba(255,176,58,${0.5 * (1 - k / 10)})`; c.beginPath(); c.arc(x - Math.sin(h) * LANE, y + Math.cos(h) * LANE, 1.5, 0, 6.2832); c.fill(); }
     }
     for (const b of bits) { const k = ease(b.t), x = b.x + (Q.x - b.x) * k * 0.55, y = b.y + (Q.y - b.y) * k * 0.55; c.fillStyle = `rgba(255,211,138,${1 - b.t})`; c.beginPath(); c.arc(x, y, 2.6 * (1 - b.t * 0.5), 0, 6.2832); c.fill(); }
-    for (const cr of crumbs) { c.fillStyle = C.amber; c.beginPath(); c.arc(cr.x, cr.y, 3.6, 0, 6.2832); c.fill(); const rr = 8 + (cr.t * 14 % 10); c.fillStyle = `rgba(255,176,58,${0.5 - (cr.t * 14 % 10) / 22})`; for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; c.beginPath(); c.arc(cr.x + Math.cos(a) * rr, cr.y + Math.sin(a) * rr, 1, 0, 6.2832); c.fill(); } }
-    for (const a of ants) { const [x, y, h] = posOf(a); ant(c, x, y, a.u, h, a.carry ? C.ink : 'rgba(242,242,247,.62)', { phase: a.ph, crumb: a.carry ? C.amber : null }); }
+    for (const cr of crumbs) {
+      const pop = Math.min(1, cr.t * 3), sc = pop < 1 ? 1 + Math.sin(pop * Math.PI) * 0.6 : 1;
+      c.fillStyle = C.amber; c.beginPath(); c.arc(cr.x, cr.y, (cr.label ? 5 : 3.6) * sc * pop, 0, 6.2832); c.fill();
+      const rr = 8 + (cr.t * 14 % 10); c.fillStyle = `rgba(255,176,58,${0.5 - (cr.t * 14 % 10) / 22})`; for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; c.beginPath(); c.arc(cr.x + Math.cos(a) * rr, cr.y + Math.sin(a) * rr, 1, 0, 6.2832); c.fill(); }
+      if (cr.label) { c.globalAlpha = pop; tagText(c, cr.label, cr.x, cr.y - 16 - (1 - pop) * 8); c.globalAlpha = 1; }
+    }
+    for (const p of tags) { const k = ease(p.t), x = p.x + (Q.x - p.x) * k * 0.25, y = p.y - k * 46; c.globalAlpha = 1 - p.t; tagText(c, '+' + p.label, x, y, true); c.globalAlpha = 1; }
+    for (const a of ants) { const [x, y, h] = posOf(a); ant(c, x, y, a.u, h, a.carry ? C.ink : 'rgba(242,242,247,.62)', { phase: a.ph, crumb: a.carry ? C.amber : null }); if (a.label && a.carry) tagText(c, a.label, x, y - 15); }
   };
+  // a ticker on a small dark pill, so it reads over the queen's dots
+  function tagText(c, t, x, y, gold) {
+    c.font = '700 11px JB, ui-monospace, monospace'; const w = c.measureText(t).width + 12;
+    c.fillStyle = 'rgba(7,7,11,.82)'; c.beginPath(); c.roundRect ? c.roundRect(x - w / 2, y - 10, w, 18, 9) : c.rect(x - w / 2, y - 10, w, 18); c.fill();
+    c.fillStyle = gold ? C.amber2 : C.amber; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, x, y); c.textBaseline = 'alphabetic';
+  }
   layout(); let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(layout, 120); });
   if (reduced) { draw(0); return; }
   whileVisible(cv, (t, now) => { const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now; step(dt); draw(t); });
@@ -364,12 +377,14 @@ api('pump').then(j => {
     radarInit(); return;
   }
   pill.classList.add('on'); pill.innerHTML = '<i></i>LIVE · PUMP.FUN THIS HOUR';
-  grid.innerHTML = trending.slice(0, 8).map((q, i) => `<a class="qc rv vis" style="--d:${i}" href="/app?queen=${encodeURIComponent(q.mint)}#launch">
+  grid.innerHTML = trending.slice(0, 8).map((q, i) => `<a class="qc rv" style="--d:${i}" data-m="${esc(q.mint)}" href="/app?queen=${encodeURIComponent(q.mint)}#launch">
       <span class="rank num">#${i + 1}</span>
       <div class="top"><span class="pic">${pic(q.icon, q.symbol)}</span><div class="nm"><b>${esc(sym(q.symbol))}</b><span>${esc(q.name || '')}</span></div></div>
-      <div class="st"><span>${usd(q.mcap)}</span>${chg(q.ch1h)}</div>
+      <div class="st"><span class="mc">${usd(q.mcap)}</span><span class="c1">${chg(q.ch1h)}</span></div>
       <div class="vrow"><span class="vamps" data-m="${esc(q.mint)}"></span></div>
       <div class="go"><span>launch an ant</span><span class="ar">→</span></div></a>`).join('');
+  $$('#qGrid .qc').forEach(el => rio.observe(el)); tiltCards();
+  freshList = (j && j.fresh) || []; rebuildPops();
   // the tape under the hero
   const items = trending.slice(0, 12).map(q => `<a class="it" href="/app?queen=${encodeURIComponent(q.mint)}#launch"><b>${esc(sym(q.symbol))}</b>${usd(q.mcap)} ${chg(q.ch1h)}</a>`).join('');
   $('#tapeRun').innerHTML = items + items; $('#tape').hidden = false;
@@ -398,7 +413,7 @@ api('list').then(j => {
   const box = $('#colList'), pill = $('#cLive');
   if (!j || !j.ok) { pill.classList.add('off'); pill.innerHTML = '<i></i>SOLANA DIDN\'T ANSWER'; box.innerHTML = `<div class="empty"><b>The chain didn't answer just now.</b>The colony reads ant1's tag address from Solana. Try again in a minute.</div>`; return; }
   pill.classList.add('on'); pill.innerHTML = `<i></i>LIVE · ${j.count || 0} ANT${j.count === 1 ? '' : 'S'}`;
-  const coins = (j.coins || []).filter(c => c.host);
+  const coins = (j.coins || []).filter(c => c.host); colonyCoins = coins; rebuildPops();
   if (!coins.length) { box.innerHTML = `<div class="empty"><canvas class="enest" aria-hidden="true"></canvas><b>No ants yet.</b>The first one carries for whichever queen you pick.<br><a class="btn g" href="/app">launch the first ant <span class="ar">→</span></a></div>`; emptyNest($('#colList .enest')); return; }
   const groups = new Map(); coins.forEach(c => { if (!groups.has(c.host)) groups.set(c.host, []); groups.get(c.host).push(c); });
   box.innerHTML = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 8).map(([host, list]) => {
@@ -466,7 +481,7 @@ async function radarInit() {
   $$('#rChips button').forEach(b => b.addEventListener('click', () => scan(b.dataset.mint)));
   $('#rForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#rIn').value.trim(); if (!isAddr(v)) { $('#rRes').innerHTML = '<p class="msg">That isn\'t a Solana address. Paste a coin\'s contract.</p>'; return; } scan(v); });
   // sweep what's trending, rank it by vamps, and open the radar on the most vamped coin
-  const res = await sweep();
+  const res = await sweep(); lastSweep = res; rebuildPops();
   let shown = res.find(r => r.count > 0) || null;
   if (shown) { rdata = shown; renderRadar(shown); }
   else if (trending.length) { const j = await scan(trending[0].mint); if (j && j.ok) shown = null; }
@@ -659,3 +674,78 @@ $('#aIn') && $('#aIn').addEventListener('input', renderAssets);
 
 // copy buttons on the program IDs
 $$('.pids [data-copy]').forEach(b => b.addEventListener('click', () => { const v = b.dataset.copy === 'tag' ? ($('.pids [data-live="tag"]').textContent || '').trim() : b.dataset.copy; copy(v, 'Copied'); }));
+
+// =====================================================================================================
+// LIVE POP-UPS: real coins from pump.fun, the vamp sweep and the colony, one at a time, bottom left
+let freshList = [], lastSweep = [], colonyCoins = [];
+const POPS = { list: [], i: 0, on: true, started: false };
+const ago2 = iso => { const t = Date.parse(iso); if (!t) return ''; const x = Math.max(0, (Date.now() - t) / 1000); return x < 60 ? 'just now' : x < 3600 ? Math.floor(x / 60) + ' min ago' : x < 86400 ? Math.floor(x / 3600) + ' h ago' : Math.floor(x / 86400) + ' d ago'; };
+function rebuildPops() {
+  const tr = trending.slice(0, 8).map(q => ({ k: 'hot', tag: 'TRENDING ON PUMP.FUN', sym: sym(q.symbol), icon: q.icon, line: `${chg(q.ch1h)} this hour · ${usd(q.mcap)}`, href: `/app?queen=${encodeURIComponent(q.mint)}#launch`, go: 'ant it →' }));
+  const fr = freshList.slice(0, 8).map(q => ({ k: 'new', tag: 'JUST LAUNCHED', sym: sym(q.symbol), icon: q.icon, line: `on pump.fun ${ago2(q.at)}${q.mcap ? ' · ' + usd(q.mcap) : ''}`, scan: q.mint, go: 'scan →' }));
+  const vp = (lastSweep || []).filter(x => x && x.count > 0).slice(0, 4).map(x => ({ k: 'vamp', tag: 'VAMPED RIGHT NOW', sym: sym(x.symbol), icon: x.icon, line: `${x.count}${x.capped ? '+' : ''} copies holding ${usd(x.vampsMcap)}`, scan: x.mint, go: 'see them →' }));
+  const an = colonyCoins.slice(0, 4).map(x => ({ k: 'ant', tag: 'NEW ANT ON ANT1', sym: sym(x.symbol), icon: x.image, line: `ant of ${sym(x.hostSymbol || '')}${x.food ? ' · ' + fmt(x.food) + ' food' : ''}`, href: `https://pump.fun/coin/${encodeURIComponent(x.mint)}`, go: 'pump ↗' }));
+  const out = []; for (let i = 0; i < 8; i++) [an, vp, fr, tr].forEach(L => { if (L[i]) out.push(L[i]); });
+  POPS.list = out; if (!POPS.started && out.length) startPops();
+}
+function startPops() {
+  POPS.started = true;
+  try { if (sessionStorage.getItem('ant1:pops') === 'off') { POPS.on = false; return; } } catch { }
+  const go = () => setTimeout(showPop, 2200);
+  if (document.getElementById('intro')) addEventListener('ant1:intro-done', go, { once: true }); else go();
+}
+function showPop() {
+  const box = $('#pops'); if (!box || !POPS.on) return;
+  if (!POPS.list.length || document.hidden) { setTimeout(showPop, 3000); return; }
+  const e = POPS.list[POPS.i++ % POPS.list.length], LIFE = 4600, ext = e.href && /^https:/.test(e.href);
+  box.innerHTML = `<a class="pop k-${e.k}" href="${esc(e.href || '#radar')}"${ext ? ' target="_blank" rel="noopener"' : ''} style="--life:${LIFE}ms"><span class="pp-ic">${pic(e.icon, e.sym)}</span><span class="pp-t"><em>${e.tag}</em><b>${esc(e.sym)}</b><small>${e.line}</small></span><span class="pp-go">${e.go}</span><i class="pp-bar"></i></a><button class="pp-x" type="button" aria-label="Hide live pop-ups">✕</button>`;
+  const card = box.querySelector('.pop'); let hover = false, left = LIFE;
+  card.addEventListener('mouseenter', () => (hover = true)); card.addEventListener('mouseleave', () => (hover = false));
+  if (e.scan) card.addEventListener('click', ev => { ev.preventDefault(); scan(e.scan); $('#radar').scrollIntoView({ behavior: 'smooth' }); });
+  box.querySelector('.pp-x').addEventListener('click', () => { POPS.on = false; box.innerHTML = ''; try { sessionStorage.setItem('ant1:pops', 'off'); } catch { } });
+  const iv = setInterval(() => {
+    if (!POPS.on) return clearInterval(iv);
+    if (!hover && !document.hidden) left -= 100;
+    if (left <= 0) { clearInterval(iv); card.classList.add('out'); setTimeout(() => { if (box.contains(card)) box.innerHTML = ''; setTimeout(showPop, 900); }, 380); }
+  }, 100);
+}
+
+// every minute, pump.fun's board again: the cards, the tape and the pop-ups move with it, values flash when they change
+setInterval(async () => {
+  if (document.hidden) return;
+  const j = await api('pump'); if (!j || !j.ok || !(j.trending || []).length) return;
+  trending = j.trending; freshList = j.fresh || freshList;
+  $$('#qGrid .qc[data-m]').forEach(el => {
+    const q = trending.find(x => x.mint === el.dataset.m); if (!q) return;
+    const mc = el.querySelector('.mc'), c1 = el.querySelector('.c1'), was = mc.textContent, now = usd(q.mcap);
+    if (was !== now) { mc.textContent = now; mc.classList.remove('flash-up', 'flash-dn'); void mc.offsetWidth; mc.classList.add(parseFloat(now.replace(/[^0-9.]/g, '')) >= parseFloat(was.replace(/[^0-9.]/g, '')) ? 'flash-up' : 'flash-dn'); }
+    c1.innerHTML = chg(q.ch1h);
+  });
+  const items = trending.slice(0, 12).map(q => `<a class="it" href="/app?queen=${encodeURIComponent(q.mint)}#launch"><b>${esc(sym(q.symbol))}</b>${usd(q.mcap)} ${chg(q.ch1h)}</a>`).join('');
+  if ($('#tapeRun')) $('#tapeRun').innerHTML = items + items;
+  rebuildPops();
+}, 60000);
+
+// a slight tilt on the queen cards, following the pointer
+function tiltCards() {
+  if (reduced || matchMedia('(hover: none)').matches) return;
+  $$('#qGrid .qc').forEach(el => {
+    el.addEventListener('pointermove', e => { const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5; el.classList.add('tilt'); el.style.transform = `perspective(700px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) translateY(-3px)`; });
+    el.addEventListener('pointerleave', () => { el.classList.remove('tilt'); el.style.transform = ''; });
+  });
+}
+
+// headings rise word by word: wrap every word (inside <em> too) in a clip and a riser
+(() => {
+  let n = 0;
+  const wrap = node => {
+    [...node.childNodes].forEach(ch => {
+      if (ch.nodeType === 3) {
+        const parts = ch.textContent.split(/(\s+)/), frag = document.createDocumentFragment();
+        parts.forEach(w => { if (!w) return; if (/^\s+$/.test(w)) { frag.appendChild(document.createTextNode(w)); return; } const o = document.createElement('span'), i = document.createElement('span'); o.className = 'w'; i.textContent = w; i.style.setProperty('--i', n++); o.appendChild(i); frag.appendChild(o); });
+        ch.replaceWith(frag);
+      } else if (ch.nodeType === 1 && ch.tagName !== 'BR') wrap(ch);
+    });
+  };
+  $$('.h2').forEach(h => { n = 0; wrap(h); });
+})();
